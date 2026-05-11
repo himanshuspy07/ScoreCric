@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { FirebaseClientProvider } from '@/firebase/client-provider';
+import { GlobalHeader } from '@/components/layout/GlobalHeader';
 
 export const metadata: Metadata = {
   title: 'ScoreCric Pro - Live Cricket Scoring',
@@ -41,7 +42,10 @@ export default function RootLayout({
       <body className="font-body antialiased bg-[#F3FAF4] text-foreground selection:bg-primary/20">
         <FirebaseClientProvider>
           <div className="min-h-[100dvh] flex flex-col">
-            {children}
+            <GlobalHeader />
+            <main className="flex-1">
+              {children}
+            </main>
           </div>
           <Toaster />
         </FirebaseClientProvider>
