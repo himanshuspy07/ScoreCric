@@ -98,4 +98,5 @@ export interface Match {
   winner?: string;
   createdAt: number;
   updatedAt: number;
+  ownerId: string;
 }

@@ -7,12 +7,21 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
 /**
+ * Sanitizes data for Firestore by removing undefined values.
+ * Firestore does not support undefined, so we convert to a JSON string and back
+ * to strip any keys with undefined values.
+ */
+const sanitizeForFirestore = (data: any) => {
+  return JSON.parse(JSON.stringify(data));
+};
+
+/**
  * Saves match data to Firestore.
  * This operation is optimistic and non-blocking.
  */
 export const saveMatchToFirestore = (db: Firestore, match: Match) => {
   const matchRef = doc(db, 'matches', match.id);
-  const data = { ...match, updatedAt: Date.now() };
+  const data = sanitizeForFirestore({ ...match, updatedAt: Date.now() });
 
   // Note: We do NOT await here. Firestore handles background sync and optimistic UI.
   setDoc(matchRef, data, { merge: true })
