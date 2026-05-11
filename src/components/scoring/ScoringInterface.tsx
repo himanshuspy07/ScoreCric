@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useState, useEffect } from 'react';
@@ -8,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Match, Inning, Ball, DismissalType } from '@/types/cricket';
-import { Users, PlayCircle, Undo2, ChevronRight } from 'lucide-react';
+import { Users, PlayCircle, Undo2, ChevronRight, Activity } from 'lucide-react';
 
 interface ScoringInterfaceProps {
   match: Match;
@@ -58,11 +57,10 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
 
   const addBall = (runs: number, options: Partial<Ball> = {}) => {
     if (!strikerId || !nonStrikerId || !bowlerId) {
-      alert("Please select striker, non-striker and bowler first.");
       return;
     }
 
-    const newInning = { ...currentInning };
+    const newInning = JSON.parse(JSON.stringify(currentInning)); // Deep clone
     let runsToAdd = runs;
     if (options.isWide || options.isNoBall) {
       runsToAdd += 1;
@@ -239,49 +237,51 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
     setIsWicketOpen(false);
   };
 
+  const isControlsDisabled = !strikerId || !nonStrikerId || !bowlerId;
+
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <Card className="border-primary/20 bg-white/60 backdrop-blur-sm shadow-sm">
-        <CardContent className="pt-6 grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label className="flex items-center gap-1.5 text-xs font-black text-muted-foreground uppercase tracking-wider"><Users className="w-3.5 h-3.5" /> Striker</Label>
+    <div className="space-y-6">
+      <Card className="border-primary/20 bg-white/60 backdrop-blur-md shadow-2xl rounded-[2rem] overflow-hidden">
+        <CardContent className="pt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="space-y-3">
+            <Label className="flex items-center gap-2 text-xs font-black text-muted-foreground uppercase tracking-[0.2em]"><Users className="w-4 h-4 text-primary" /> Active Striker</Label>
             <Select value={strikerId} onValueChange={setStrikerId}>
-              <SelectTrigger className="font-bold border-2 h-11">
-                <SelectValue placeholder="Select" />
+              <SelectTrigger className="font-black border-2 h-14 rounded-2xl text-lg bg-white/50">
+                <SelectValue placeholder="Select Batter" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="rounded-2xl">
                 {battingTeamPlayers.players.map(p => (
-                  <SelectItem key={p} value={p} disabled={currentInning.batsmen[p]?.isOut || p === nonStrikerId} className="font-bold">
+                  <SelectItem key={p} value={p} disabled={currentInning.batsmen[p]?.isOut || p === nonStrikerId} className="font-bold text-lg">
                     {p} {currentInning.batsmen[p] ? `(${currentInning.batsmen[p].runs})` : ''}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
-            <Label className="flex items-center gap-1.5 text-xs font-black text-muted-foreground uppercase tracking-wider"><Users className="w-3.5 h-3.5" /> Non-Striker</Label>
+          <div className="space-y-3">
+            <Label className="flex items-center gap-2 text-xs font-black text-muted-foreground uppercase tracking-[0.2em]"><Users className="w-4 h-4 text-primary" /> Non-Striker</Label>
             <Select value={nonStrikerId} onValueChange={setNonStrikerId}>
-              <SelectTrigger className="font-bold border-2 h-11">
-                <SelectValue placeholder="Select" />
+              <SelectTrigger className="font-black border-2 h-14 rounded-2xl text-lg bg-white/50">
+                <SelectValue placeholder="Select Batter" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="rounded-2xl">
                 {battingTeamPlayers.players.map(p => (
-                  <SelectItem key={p} value={p} disabled={currentInning.batsmen[p]?.isOut || p === strikerId} className="font-bold">
+                  <SelectItem key={p} value={p} disabled={currentInning.batsmen[p]?.isOut || p === strikerId} className="font-bold text-lg">
                     {p} {currentInning.batsmen[p] ? `(${currentInning.batsmen[p].runs})` : ''}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <div className="col-span-2 space-y-2">
-            <Label className="flex items-center gap-1.5 text-xs font-black text-muted-foreground uppercase tracking-wider"><PlayCircle className="w-3.5 h-3.5" /> Current Bowler</Label>
+          <div className="col-span-1 md:col-span-2 lg:col-span-1 space-y-3">
+            <Label className="flex items-center gap-2 text-xs font-black text-muted-foreground uppercase tracking-[0.2em]"><PlayCircle className="w-4 h-4 text-primary" /> Current Bowler</Label>
             <Select value={bowlerId} onValueChange={setBowlerId}>
-              <SelectTrigger className="font-bold border-2 h-11">
-                <SelectValue placeholder="Select Active Bowler" />
+              <SelectTrigger className="font-black border-2 h-14 rounded-2xl text-lg bg-white/50">
+                <SelectValue placeholder="Assign Bowler" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="rounded-2xl">
                 {bowlingTeamPlayers.players.map(p => (
-                  <SelectItem key={p} value={p} className="font-bold">
+                  <SelectItem key={p} value={p} className="font-bold text-lg">
                     {p} {currentInning.bowlers[p] ? `(${currentInning.bowlers[p].wickets}-${currentInning.bowlers[p].runsConceded})` : ''}
                   </SelectItem>
                 ))}
@@ -291,45 +291,48 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-4 gap-2 sm:gap-3">
+      <div className="grid grid-cols-3 md:grid-cols-6 gap-3 sm:gap-4">
         {[0, 1, 2, 3, 4, 6].map(run => (
           <Button 
             key={run} 
+            disabled={isControlsDisabled}
             onClick={() => addBall(run)} 
-            className={`h-14 sm:h-16 text-xl sm:text-2xl font-black bg-white text-primary border-2 border-primary/20 hover:bg-primary/5 active:scale-95 shadow-sm rounded-xl ${run === 4 ? 'text-blue-600 border-blue-100' : run === 6 ? 'text-green-600 border-green-100' : ''}`}
+            className={`h-16 sm:h-20 text-2xl sm:text-3xl font-black bg-white text-primary border-4 border-primary/5 hover:bg-primary/5 active:scale-95 shadow-xl rounded-3xl transition-all ${run === 4 ? 'text-blue-600 border-blue-100/50' : run === 6 ? 'text-green-600 border-green-100/50' : ''} ${isControlsDisabled ? 'opacity-30' : ''}`}
           >
             {run}
           </Button>
         ))}
-        <Button 
-          onClick={() => addBall(0, { isWide: true })} 
-          className="h-14 sm:h-16 text-lg font-black bg-amber-50 text-amber-700 border-2 border-amber-200 active:scale-95 shadow-sm rounded-xl"
-        >
-          WD
-        </Button>
-        <Button 
-          onClick={() => addBall(0, { isNoBall: true })} 
-          className="h-14 sm:h-16 text-lg font-black bg-blue-50 text-blue-700 border-2 border-blue-200 active:scale-95 shadow-sm rounded-xl"
-        >
-          NB
-        </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        <Button 
+          disabled={isControlsDisabled}
+          onClick={() => addBall(0, { isWide: true })} 
+          className="h-16 sm:h-20 text-lg font-black bg-amber-50 text-amber-700 border-4 border-amber-200 shadow-lg rounded-3xl active:scale-95 disabled:opacity-30"
+        >
+          WIDE
+        </Button>
+        <Button 
+          disabled={isControlsDisabled}
+          onClick={() => addBall(0, { isNoBall: true })} 
+          className="h-16 sm:h-20 text-lg font-black bg-blue-50 text-blue-700 border-4 border-blue-200 shadow-lg rounded-3xl active:scale-95 disabled:opacity-30"
+        >
+          NO BALL
+        </Button>
         <Dialog open={isWicketOpen} onOpenChange={setIsWicketOpen}>
           <DialogTrigger asChild>
-            <Button variant="destructive" className="h-14 sm:h-16 text-lg font-black shadow-lg shadow-destructive/20 rounded-xl active:scale-95">WICKET</Button>
+            <Button disabled={isControlsDisabled} variant="destructive" className="h-16 sm:h-20 text-lg font-black shadow-xl shadow-destructive/20 rounded-3xl active:scale-95 disabled:opacity-30">WICKET</Button>
           </DialogTrigger>
-          <DialogContent className="w-[90%] rounded-2xl sm:w-full">
+          <DialogContent className="w-[90%] rounded-[2rem] sm:w-full">
             <DialogHeader>
-              <DialogTitle className="text-xl font-black text-destructive">How did the wicket fall?</DialogTitle>
+              <DialogTitle className="text-2xl font-black text-destructive">Dismissal Type</DialogTitle>
             </DialogHeader>
-            <div className="py-6">
+            <div className="py-8">
               <Select value={wicketType} onValueChange={v => setWicketType(v as DismissalType)}>
-                <SelectTrigger className="h-12 border-2 font-bold">
+                <SelectTrigger className="h-14 border-2 font-black text-lg rounded-2xl">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-2xl">
                   <SelectItem value="bowled" className="font-bold">Bowled</SelectItem>
                   <SelectItem value="caught" className="font-bold">Caught</SelectItem>
                   <SelectItem value="lbw" className="font-bold">LBW</SelectItem>
@@ -340,39 +343,45 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
                 </SelectContent>
               </Select>
             </div>
-            <DialogFooter className="gap-2 sm:gap-0">
-              <Button onClick={() => setIsWicketOpen(false)} variant="outline" className="rounded-xl font-bold h-12">Cancel</Button>
-              <Button onClick={handleWicket} variant="destructive" className="rounded-xl font-black h-12">Confirm Wicket</Button>
+            <DialogFooter className="gap-3 sm:gap-2">
+              <Button onClick={() => setIsWicketOpen(false)} variant="outline" className="rounded-2xl font-bold h-14 flex-1 sm:flex-none">Cancel</Button>
+              <Button onClick={handleWicket} variant="destructive" className="rounded-2xl font-black h-14 flex-1 sm:flex-none">Confirm</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
         <Button 
           variant="outline" 
           onClick={undoLastBall}
-          className="h-14 sm:h-16 text-lg font-black gap-2 border-2 rounded-xl active:scale-95 shadow-sm"
+          className="h-16 sm:h-20 text-lg font-black gap-2 border-4 rounded-3xl active:scale-95 shadow-xl"
           disabled={currentInning.balls.length === 0}
         >
-          <Undo2 className="w-5 h-5" /> UNDO
+          <Undo2 className="w-6 h-6" /> UNDO
         </Button>
       </div>
 
-      <div className="flex items-center gap-2 overflow-x-auto pb-4 pt-2 -mx-2 px-2 scrollbar-hide">
-        {currentInning.balls.slice(-12).map((b, i) => (
-          <div 
-            key={b.id} 
-            className={`flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-xs sm:text-sm font-black border-2 shadow-sm animate-in slide-in-from-right-2 ${
-              b.isWicket ? 'bg-destructive text-white border-destructive shadow-destructive/20' : 
-              b.runs === 4 ? 'bg-blue-600 text-white border-blue-600 shadow-blue-200' :
-              b.runs === 6 ? 'bg-green-600 text-white border-green-600 shadow-green-200' :
-              'bg-white text-primary border-primary/10'
-            }`}
-          >
-            {b.isWicket ? 'W' : (b.isWide ? 'Wd' : (b.isNoBall ? 'Nb' : b.runs))}
-          </div>
-        ))}
-        {currentInning.balls.length === 0 && (
-          <div className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest py-3">No balls bowled yet</div>
-        )}
+      <div className="relative">
+         <div className="flex items-center gap-3 overflow-x-auto pb-6 pt-2 -mx-2 px-2 scrollbar-hide">
+          {currentInning.balls.slice(-15).map((b) => (
+            <div 
+              key={b.id} 
+              className={`flex-shrink-0 w-11 h-11 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center text-sm sm:text-lg font-black border-4 shadow-lg animate-in zoom-in-50 duration-300 ${
+                b.isWicket ? 'bg-destructive text-white border-destructive shadow-destructive/20' : 
+                b.runs === 4 ? 'bg-blue-600 text-white border-blue-600 shadow-blue-200' :
+                b.runs === 6 ? 'bg-green-600 text-white border-green-600 shadow-green-200' :
+                'bg-white text-primary border-primary/10'
+              }`}
+            >
+              {b.isWicket ? 'W' : (b.isWide ? 'Wd' : (b.isNoBall ? 'Nb' : b.runs))}
+            </div>
+          ))}
+          {currentInning.balls.length === 0 && (
+            <div className="w-full flex flex-col items-center justify-center py-12 border-4 border-dashed rounded-[2rem] text-muted-foreground/30">
+              <Activity className="w-10 h-10 mb-2 opacity-20" />
+              <span className="text-xs font-black uppercase tracking-[0.3em]">Ready for first ball</span>
+            </div>
+          )}
+        </div>
+        {currentInning.balls.length > 0 && <div className="absolute right-0 top-0 bottom-6 w-20 bg-gradient-to-l from-background to-transparent pointer-events-none" />}
       </div>
     </div>
   );
