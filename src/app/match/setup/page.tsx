@@ -16,6 +16,7 @@ import { Match, Inning } from '@/types/cricket';
 import { useUser } from '@/firebase';
 import { generateTeamLogo } from '@/ai/flows/team-branding';
 import Image from 'next/image';
+import { useToast } from '@/hooks/use-toast';
 
 const TEAM_COLORS = [
   { name: 'Forest Green', value: '#2C5A37' },
@@ -29,6 +30,7 @@ const TEAM_COLORS = [
 export default function MatchSetup() {
   const router = useRouter();
   const { user, signInWithGoogle } = useUser();
+  const { toast } = useToast();
   const [step, setStep] = useState(1);
   const [generatingLogo, setGeneratingLogo] = useState<'A' | 'B' | null>(null);
 
@@ -77,8 +79,20 @@ export default function MatchSetup() {
         ...prev,
         [team === 'A' ? 'teamALogo' : 'teamBLogo']: logoUrl
       }));
-    } catch (error) {
+    } catch (error: any) {
       console.error("Logo generation failed", error);
+      
+      const isBillingError = error.message?.includes('AI_BILLING_REQUIRED') || 
+                             error.message?.includes('paid plans') || 
+                             error.message?.includes('billing');
+
+      toast({
+        variant: "destructive",
+        title: isBillingError ? "Upgrade Required" : "Generation Failed",
+        description: isBillingError 
+          ? "AI Logo generation requires a paid Google AI / Firebase plan. Please upgrade in your Firebase Console."
+          : "Could not generate team logo. Please try again later.",
+      });
     } finally {
       setGeneratingLogo(null);
     }
