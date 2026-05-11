@@ -9,12 +9,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { getMatchById, saveMatch } from '@/lib/storage';
 import { Match, Inning } from '@/types/cricket';
-import { getRunRate, getRequiredRunRate, getManhattanData, getWormData, getWinProbability } from '@/lib/match-utils';
+import { getRunRate, getRequiredRunRate, getManhattanData, getWormData, getWinProbability, getComparativeManhattanData, getComparativeWormData } from '@/lib/match-utils';
 import { ChevronLeft, Share2, BarChart3, LineChart, Info, Trophy, Zap } from 'lucide-react';
 import ScoringInterface from '@/components/scoring/ScoringInterface';
 import MatchScorecard from '@/components/scorecard/MatchScorecard';
 import { useToast } from "@/hooks/use-toast";
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from '@/components/ui/chart';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Line, LineChart as ReLineChart } from 'recharts';
 
 export default function MatchPage({ params }: { params: Promise<{ id: string }> }) {
@@ -42,6 +42,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
   const battingTeamObj = currentInning.battingTeam === match.teamA.name ? match.teamA : match.teamB;
   const bowlingTeamObj = currentInning.battingTeam === match.teamA.name ? match.teamB : match.teamA;
   const brandingColor = battingTeamObj.color || '#2C5A37';
+  const bowlBrandingColor = bowlingTeamObj.color || '#1E40AF';
 
   const handleScoreUpdate = (updatedInning: Inning) => {
     const updatedMatch: Match = {
@@ -162,8 +163,8 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
         {match.currentInning === 2 && winProb !== null && (
           <div className="mt-6 space-y-2 animate-in fade-in slide-in-from-top-2 duration-700">
             <div className="flex justify-between text-[10px] font-black uppercase tracking-tighter">
-              <span className="flex items-center gap-1"><Zap className="w-3 h-3 text-amber-400" /> {currentInning.battingTeam} {winProb}%</span>
-              <span>{currentInning.bowlingTeam} {100 - winProb}%</span>
+              <span className="flex items-center gap-1"><Zap className="w-3 h-3 text-amber-400" /> {currentInning.battingTeam} {Math.round(winProb)}%</span>
+              <span>{currentInning.bowlingTeam} {100 - Math.round(winProb)}%</span>
             </div>
             <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden flex">
               <div className="h-full bg-white transition-all duration-1000" style={{ width: `${winProb}%` }} />
@@ -236,17 +237,25 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
               <Card className="border-2 shadow-sm rounded-2xl overflow-hidden">
                 <CardHeader className="bg-muted/30">
                   <CardTitle className="text-sm font-black flex items-center gap-2"><BarChart3 className="w-4 h-4" /> Manhattan</CardTitle>
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase">Runs per over progression</p>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase">Runs per over comparison</p>
                 </CardHeader>
                 <CardContent className="pt-6 h-[300px]">
-                  {currentInning.balls.length > 0 ? (
-                    <ChartContainer config={{ runs: { label: "Runs", color: brandingColor } }} className="h-full w-full">
-                      <BarChart data={getManhattanData(currentInning)}>
+                  {match.innings[0]?.balls.length ? (
+                    <ChartContainer 
+                      config={{ 
+                        team1: { label: match.innings[0].battingTeam, color: match.innings[0].battingTeam === match.teamA.name ? match.teamA.color : match.teamB.color },
+                        team2: { label: match.innings[1]?.battingTeam || "TBD", color: match.innings[1]?.battingTeam === match.teamA.name ? match.teamA.color : match.teamB.color }
+                      }} 
+                      className="h-full w-full"
+                    >
+                      <BarChart data={getComparativeManhattanData(match)}>
                         <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.1} />
                         <XAxis dataKey="over" tickLine={false} axisLine={false} tickMargin={8} />
                         <YAxis tickLine={false} axisLine={false} />
                         <ChartTooltip content={<ChartTooltipContent />} />
-                        <Bar dataKey="runs" fill="var(--color-runs)" radius={4} />
+                        <ChartLegend content={<ChartLegendContent />} />
+                        <Bar dataKey="team1" fill="var(--color-team1)" radius={2} />
+                        {match.currentInning === 2 && <Bar dataKey="team2" fill="var(--color-team2)" radius={2} />}
                       </BarChart>
                     </ChartContainer>
                   ) : (
@@ -261,14 +270,22 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                   <p className="text-[10px] font-bold text-muted-foreground uppercase">Cumulative run progression</p>
                 </CardHeader>
                 <CardContent className="pt-6 h-[300px]">
-                  {currentInning.balls.length > 0 ? (
-                    <ChartContainer config={{ score: { label: "Score", color: brandingColor } }} className="h-full w-full">
-                      <ReLineChart data={getWormData(currentInning)}>
+                  {match.innings[0]?.balls.length ? (
+                    <ChartContainer 
+                      config={{ 
+                        team1: { label: match.innings[0].battingTeam, color: match.innings[0].battingTeam === match.teamA.name ? match.teamA.color : match.teamB.color },
+                        team2: { label: match.innings[1]?.battingTeam || "TBD", color: match.innings[1]?.battingTeam === match.teamA.name ? match.teamA.color : match.teamB.color }
+                      }} 
+                      className="h-full w-full"
+                    >
+                      <ReLineChart data={getComparativeWormData(match)}>
                         <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.1} />
                         <XAxis dataKey="over" tickLine={false} axisLine={false} tickMargin={8} />
                         <YAxis tickLine={false} axisLine={false} />
                         <ChartTooltip content={<ChartTooltipContent />} />
-                        <Line type="monotone" dataKey="score" stroke="var(--color-score)" strokeWidth={3} dot={false} />
+                        <ChartLegend content={<ChartLegendContent />} />
+                        <Line type="monotone" dataKey="team1" stroke="var(--color-team1)" strokeWidth={3} dot={false} />
+                        {match.currentInning === 2 && <Line type="monotone" dataKey="team2" stroke="var(--color-team2)" strokeWidth={3} dot={false} />}
                       </ReLineChart>
                     </ChartContainer>
                   ) : (

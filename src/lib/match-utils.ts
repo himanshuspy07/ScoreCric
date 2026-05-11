@@ -63,11 +63,8 @@ export const getWinProbability = (match: Match): number | null => {
   // Run rate impact
   prob -= (rrr - targetRR) * 12;
   
-  // Overs remaining factor (more uncertainty early on)
-  const uncertaintyFactor = ballsRemaining / totalBalls;
-  
   // Adjust bounds
-  return Math.max(2, Math.min(98, prob));
+  return Math.round(Math.max(2, Math.min(98, prob)));
 };
 
 export const getManhattanData = (inning: Inning) => {
@@ -80,9 +77,42 @@ export const getManhattanData = (inning: Inning) => {
   });
 
   return Object.entries(overRuns).map(([over, runs]) => ({
-    over: `Over ${over}`,
+    over: over,
     runs: runs,
   }));
+};
+
+export const getComparativeManhattanData = (match: Match) => {
+  const inn1 = match.innings[0];
+  const inn2 = match.innings[1];
+  if (!inn1) return [];
+
+  const maxOvers = match.oversLimit;
+  const data = [];
+
+  for (let i = 1; i <= maxOvers; i++) {
+    const item: any = { over: i };
+    
+    // Inning 1 runs for this over
+    const runs1 = inn1.balls
+      .filter(b => b.overNumber + 1 === i)
+      .reduce((sum, b) => sum + b.runs + (b.isWide || b.isNoBall ? 1 : 0), 0);
+    item.team1 = runs1;
+
+    // Inning 2 runs for this over
+    if (inn2) {
+      const isOverStarted = inn2.overs >= i - 1 && (inn2.overs > i - 1 || inn2.ballsInOver > 0);
+      if (isOverStarted) {
+        const runs2 = inn2.balls
+          .filter(b => b.overNumber + 1 === i)
+          .reduce((sum, b) => sum + b.runs + (b.isWide || b.isNoBall ? 1 : 0), 0);
+        item.team2 = runs2;
+      }
+    }
+    
+    data.push(item);
+  }
+  return data;
 };
 
 export const getWormData = (inning: Inning) => {
@@ -91,4 +121,34 @@ export const getWormData = (inning: Inning) => {
     score: ball.cumulativeScore,
     over: `${ball.overNumber}.${ball.ballNumber}`
   }));
+};
+
+export const getComparativeWormData = (match: Match) => {
+  const inn1 = match.innings[0];
+  const inn2 = match.innings[1];
+  if (!inn1) return [];
+
+  const maxOvers = match.oversLimit;
+  const data = [{ over: 0, team1: 0, team2: 0 }];
+
+  for (let i = 1; i <= maxOvers; i++) {
+    const item: any = { over: i };
+    
+    // Score at end of over i for Team 1
+    const ballsInOver1 = inn1.balls.filter(b => b.overNumber < i);
+    const score1 = ballsInOver1.length > 0 ? ballsInOver1[ballsInOver1.length - 1].cumulativeScore : 0;
+    item.team1 = score1;
+
+    // Score at end of over i for Team 2
+    if (inn2) {
+      if (inn2.overs >= i || (inn2.overs === i - 1 && inn2.ballsInOver === 0)) {
+        const ballsInOver2 = inn2.balls.filter(b => b.overNumber < i);
+        const score2 = ballsInOver2.length > 0 ? ballsInOver2[ballsInOver2.length - 1].cumulativeScore : 0;
+        item.team2 = score2;
+      }
+    }
+    
+    data.push(item);
+  }
+  return data;
 };
