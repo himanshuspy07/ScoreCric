@@ -26,6 +26,13 @@ export const getRunRate = (score: number, totalBalls: number) => {
   return ((score / totalBalls) * 6).toFixed(2);
 };
 
+export const getRequiredRunRate = (target: number, currentScore: number, ballsRemaining: number) => {
+  if (ballsRemaining <= 0) return '0.00';
+  const runsNeeded = target - currentScore;
+  if (runsNeeded <= 0) return '0.00';
+  return ((runsNeeded / ballsRemaining) * 6).toFixed(2);
+};
+
 export const getManhattanData = (inning: Inning) => {
   const overRuns: Record<number, number> = {};
   inning.balls.forEach(ball => {

@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getMatchById, saveMatch } from '@/lib/storage';
 import { Match, Inning } from '@/types/cricket';
-import { getRunRate, getManhattanData, getWormData } from '@/lib/match-utils';
+import { getRunRate, getRequiredRunRate, getManhattanData, getWormData } from '@/lib/match-utils';
 import { ChevronLeft, Share2, BarChart3, LineChart, Info, Trophy } from 'lucide-react';
 import ScoringInterface from '@/components/scoring/ScoringInterface';
 import MatchScorecard from '@/components/scorecard/MatchScorecard';
@@ -150,6 +150,17 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                 CRR: {getRunRate(currentInning.score, currentInning.overs * 6 + currentInning.ballsInOver)}
               </p>
             </div>
+            {match.currentInning === 2 && match.innings[0] && (
+              <div className="bg-amber-500 px-3 py-1 rounded-lg shadow-sm">
+                <p className="text-xs sm:text-sm font-black text-white">
+                  RRR: {getRequiredRunRate(
+                    match.innings[0].score + 1,
+                    currentInning.score,
+                    (match.oversLimit * 6) - (currentInning.overs * 6 + currentInning.ballsInOver)
+                  )}
+                </p>
+              </div>
+            )}
             {match.currentInning === 2 && match.innings[0] && (
               <p className="text-[10px] sm:text-xs font-black bg-white/10 px-2 py-0.5 rounded">
                 TARGET: {match.innings[0].score + 1}
