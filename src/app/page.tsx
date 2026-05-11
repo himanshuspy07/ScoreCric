@@ -5,23 +5,38 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { getAllMatches, deleteMatch } from '@/lib/storage';
 import { Match } from '@/types/cricket';
 import { Trophy, Plus, History, Trash2, LayoutGrid, ChevronRight } from 'lucide-react';
 
 export default function Home() {
   const [matches, setMatches] = useState<Match[]>([]);
+  const [matchToDelete, setMatchToDelete] = useState<string | null>(null);
 
   useEffect(() => {
-    setMatches(getAllMatches().sort((a, b) => b.updatedAt - a.updatedAt));
+    refreshMatches();
   }, []);
 
-  const handleDelete = (e: React.MouseEvent, id: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (confirm("Delete this match?")) {
-      deleteMatch(id);
-      setMatches(getAllMatches().sort((a, b) => b.updatedAt - a.updatedAt));
+  const refreshMatches = () => {
+    setMatches(getAllMatches().sort((a, b) => b.updatedAt - a.updatedAt));
+  };
+
+  const handleDeleteConfirm = () => {
+    if (matchToDelete) {
+      deleteMatch(matchToDelete);
+      refreshMatches();
+      setMatchToDelete(null);
     }
   };
 
@@ -61,39 +76,71 @@ export default function Home() {
         ) : (
           <div className="grid gap-4">
             {matches.map((match) => (
-              <Link key={match.id} href={`/match/${match.id}`}>
-                <Card className="hover:shadow-md transition-all cursor-pointer border-2 hover:border-primary/20">
-                  <CardContent className="p-4 flex justify-between items-center">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${match.status === 'live' ? 'bg-red-500 animate-pulse' : 'bg-muted'}`} />
-                        <CardTitle className="text-lg">{match.teamA.name} vs {match.teamB.name}</CardTitle>
+              <div key={match.id} className="relative group">
+                <Link href={`/match/${match.id}`}>
+                  <Card className="hover:shadow-md transition-all cursor-pointer border-2 hover:border-primary/20">
+                    <CardContent className="p-4 flex justify-between items-center">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full ${match.status === 'live' ? 'bg-red-500 animate-pulse' : 'bg-muted'}`} />
+                          <CardTitle className="text-lg">{match.teamA.name} vs {match.teamB.name}</CardTitle>
+                        </div>
+                        <CardDescription className="flex gap-2 items-center">
+                          <span className="bg-muted px-2 py-0.5 rounded text-[10px] uppercase font-bold">{match.format}</span>
+                          <span>{new Date(match.createdAt).toLocaleDateString()}</span>
+                          {match.status === 'completed' && <span className="text-secondary font-bold">• Finished</span>}
+                        </CardDescription>
+                        {match.status === 'live' && (
+                          <p className="text-sm font-semibold text-primary">
+                            {match.innings[match.currentInning - 1]?.score}/{match.innings[match.currentInning - 1]?.wickets} ({match.innings[match.currentInning - 1]?.overs}.{match.innings[match.currentInning - 1]?.ballsInOver})
+                          </p>
+                        )}
+                        {match.status === 'completed' && (
+                          <p className="text-sm text-muted-foreground italic">
+                            Winner: {match.winner}
+                          </p>
+                        )}
                       </div>
-                      <CardDescription className="flex gap-2 items-center">
-                        <span className="bg-muted px-2 py-0.5 rounded text-[10px] uppercase font-bold">{match.format}</span>
-                        <span>{new Date(match.createdAt).toLocaleDateString()}</span>
-                        {match.status === 'completed' && <span className="text-secondary font-bold">• Finished</span>}
-                      </CardDescription>
-                      {match.status === 'live' && (
-                        <p className="text-sm font-semibold text-primary">
-                          {match.innings[match.currentInning-1]?.score}/{match.innings[match.currentInning-1]?.wickets} ({match.innings[match.currentInning-1]?.overs}.{match.innings[match.currentInning-1]?.ballsInOver})
-                        </p>
-                      )}
-                      {match.status === 'completed' && (
-                        <p className="text-sm text-muted-foreground italic">
-                          Winner: {match.winner}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="icon" onClick={(e) => handleDelete(e, match.id)} className="text-destructive">
+                      <div className="flex items-center gap-2">
+                        <ChevronRight className="w-6 h-6 text-muted-foreground" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+                
+                <div className="absolute top-4 right-12 z-10">
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="text-destructive hover:bg-destructive/10"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setMatchToDelete(match.id);
+                        }}
+                      >
                         <Trash2 className="w-5 h-5" />
                       </Button>
-                      <ChevronRight className="w-6 h-6 text-muted-foreground" />
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete the match between {match.teamA.name} and {match.teamB.name}. This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setMatchToDelete(null)}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                          Delete Match
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </div>
             ))}
           </div>
         )}
