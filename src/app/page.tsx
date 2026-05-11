@@ -14,7 +14,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { getAllMatches, deleteMatch } from '@/lib/storage';
 import { Match } from '@/types/cricket';
@@ -22,7 +21,8 @@ import { Trophy, Plus, History, Trash2, LayoutGrid, ChevronRight } from 'lucide-
 
 export default function Home() {
   const [matches, setMatches] = useState<Match[]>([]);
-  const [matchToDelete, setMatchToDelete] = useState<string | null>(null);
+  const [matchToDelete, setMatchToDelete] = useState<Match | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     refreshMatches();
@@ -34,10 +34,18 @@ export default function Home() {
 
   const handleDeleteConfirm = () => {
     if (matchToDelete) {
-      deleteMatch(matchToDelete);
+      deleteMatch(matchToDelete.id);
       refreshMatches();
       setMatchToDelete(null);
+      setIsDeleteDialogOpen(false);
     }
+  };
+
+  const openDeleteDialog = (e: React.MouseEvent, match: Match) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMatchToDelete(match);
+    setIsDeleteDialogOpen(true);
   };
 
   return (
@@ -109,42 +117,41 @@ export default function Home() {
                 </Link>
                 
                 <div className="absolute top-1/2 -translate-y-1/2 right-4 z-10">
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button 
-                        variant="outline" 
-                        size="icon" 
-                        className="h-10 w-10 border-destructive/20 text-destructive bg-destructive/5 hover:bg-destructive hover:text-destructive-foreground transition-colors shadow-sm"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setMatchToDelete(match.id);
-                        }}
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete this match?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will permanently delete the match between {match.teamA.name} and {match.teamB.name}. This action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel onClick={() => setMatchToDelete(null)}>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                          Delete Match
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    className="h-10 w-10 border-destructive text-destructive bg-destructive/5 hover:bg-destructive hover:text-white transition-all shadow-md"
+                    onClick={(e) => openDeleteDialog(e, match)}
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </Button>
                 </div>
               </div>
             ))}
           </div>
         )}
       </section>
+
+      {/* Single deletion dialog for the whole page */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Match?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the match between <strong>{matchToDelete?.teamA.name}</strong> and <strong>{matchToDelete?.teamB.name}</strong>. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteConfirm} 
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Match
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <footer className="pwa-footer">
         Made by Himanshu Yadav
