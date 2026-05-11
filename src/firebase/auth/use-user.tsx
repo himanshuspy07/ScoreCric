@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react';
 import { User, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
 import { useAuth } from '../provider';
-import { errorEmitter } from '../error-emitter';
+import { useToast } from '@/hooks/use-toast';
 
 export function useUser() {
   const auth = useAuth();
+  const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -19,18 +20,45 @@ export function useUser() {
 
   const signInWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
+    // Prompt for account selection to ensure a fresh request
+    provider.setCustomParameters({
+      prompt: 'select_account'
+    });
+
     try {
       await signInWithPopup(auth, provider);
     } catch (error: any) {
-      // Errors are handled through the central listener or contextual toasts
-      // depending on the nature of the error (auth vs firestore)
+      console.error('Authentication Error:', error);
+      
+      let errorMessage = 'An unexpected error occurred during sign-in.';
+      
       if (error.code === 'auth/api-key-not-valid') {
-        console.error('Invalid Firebase API Key. Please update src/firebase/config.ts with your actual key.');
+        errorMessage = 'Invalid Firebase API Key. Please check your configuration.';
+      } else if (error.code === 'auth/operation-not-allowed') {
+        errorMessage = 'Google Sign-In is not enabled in your Firebase Console.';
+      } else if (error.code === 'auth/unauthorized-domain') {
+        errorMessage = 'This domain is not authorized in your Firebase Console.';
+      } else if (error.message) {
+        errorMessage = error.message;
       }
+
+      toast({
+        variant: "destructive",
+        title: "Sign-In Failed",
+        description: errorMessage,
+      });
     }
   };
 
-  const logout = () => signOut(auth);
+  const logout = () => {
+    signOut(auth).catch((error) => {
+      toast({
+        variant: "destructive",
+        title: "Logout Failed",
+        description: error.message,
+      });
+    });
+  };
 
   return { user, loading, signInWithGoogle, logout };
 }
