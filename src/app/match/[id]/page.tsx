@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { saveMatchToLocalStorage, useLocalMatch } from '@/lib/storage';
 import { Match, Inning, Ball } from '@/types/cricket';
 import { getRunRate, getRequiredRunRate, getWinProbability, getComparativeManhattanData, getComparativeWormData } from '@/lib/match-utils';
-import { ChevronLeft, Share2, BarChart3, LineChart, Trophy, Zap, Activity } from 'lucide-react';
+import { ChevronLeft, Share2, BarChart3, LineChart, Trophy, Zap, Activity, Target } from 'lucide-react';
 import ScoringInterface from '@/components/scoring/ScoringInterface';
 import MatchScorecard from '@/components/scorecard/MatchScorecard';
 import { useToast } from "@/hooks/use-toast";
@@ -212,9 +212,17 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
             </p>
           </div>
           <div className="text-right space-y-2">
-            <div className="bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-white/10">
-               <p className="text-[10px] font-black opacity-60 uppercase">Run Rate</p>
-               <p className="text-sm sm:text-base font-black">{getRunRate(currentInning.score, currentInning.overs * 6 + currentInning.ballsInOver)}</p>
+            <div className="flex gap-2">
+              <div className="bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-white/10">
+                 <p className="text-[10px] font-black opacity-60 uppercase">Run Rate</p>
+                 <p className="text-sm sm:text-base font-black">{getRunRate(currentInning.score, currentInning.overs * 6 + currentInning.ballsInOver)}</p>
+              </div>
+              {match.currentInning === 2 && match.innings[0] && (
+                <div className="bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-white/10 flex flex-col items-center">
+                   <p className="text-[10px] font-black opacity-60 uppercase">Target</p>
+                   <p className="text-sm sm:text-base font-black">{match.innings[0].score + 1}</p>
+                </div>
+              )}
             </div>
             {match.currentInning === 2 && match.innings[0] && (
               <div className="bg-amber-500/90 shadow-lg px-3 py-1.5 rounded-xl">
@@ -386,7 +394,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       <footer className="pwa-footer bg-white/90 backdrop-blur-md">
         <div className="flex items-center justify-center gap-2 font-black tracking-tight text-primary/40 uppercase text-[8px]">
           <span className="bg-primary text-white px-1 py-0.5 rounded">FAST</span>
-          <span>SCORECRIC LOCAL SYSTEM</span>
+          <span>ScoreCric</span>
         </div>
       </footer>
     </div>

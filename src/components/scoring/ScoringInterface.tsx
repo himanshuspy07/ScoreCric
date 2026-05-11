@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useState, useEffect } from 'react';
@@ -7,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Match, Inning, Ball, DismissalType } from '@/types/cricket';
-import { Users, PlayCircle, Undo2, ChevronRight, Activity } from 'lucide-react';
+import { Users, PlayCircle, Undo2, ChevronRight, Activity, Target } from 'lucide-react';
 
 interface ScoringInterfaceProps {
   match: Match;
@@ -239,8 +240,36 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
 
   const isControlsDisabled = !strikerId || !nonStrikerId || !bowlerId;
 
+  const target = match.innings[0] ? match.innings[0].score + 1 : 0;
+  const runsNeeded = target - currentInning.score;
+  const totalPossibleBalls = match.oversLimit * 6;
+  const ballsBowled = currentInning.overs * 6 + currentInning.ballsInOver;
+  const ballsRemaining = Math.max(0, totalPossibleBalls - ballsBowled);
+
   return (
     <div className="space-y-6">
+      {match.currentInning === 2 && match.innings[0] && (
+        <Card className="border-amber-200 bg-amber-50/50 shadow-sm rounded-2xl overflow-hidden animate-in fade-in slide-in-from-top-4 duration-500">
+           <CardContent className="p-4 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                 <div className="bg-amber-100 p-2 rounded-xl">
+                    <Target className="w-5 h-5 text-amber-600" />
+                 </div>
+                 <div>
+                    <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">The Chase</p>
+                    <p className="text-lg font-black text-amber-900 leading-tight">
+                      {runsNeeded > 0 ? `Need ${runsNeeded} runs to win` : "Target achieved!"}
+                    </p>
+                 </div>
+              </div>
+              <div className="text-right">
+                 <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Remaining</p>
+                 <p className="text-lg font-black text-amber-900">{ballsRemaining} <span className="text-[10px] opacity-40">BALLS</span></p>
+              </div>
+           </CardContent>
+        </Card>
+      )}
+
       <Card className="border-primary/20 bg-white/60 backdrop-blur-md shadow-2xl rounded-[2rem] overflow-hidden">
         <CardContent className="pt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <div className="space-y-3">
