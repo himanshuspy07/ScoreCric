@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getMatchById, saveMatch } from '@/lib/storage';
 import { Match, Inning } from '@/types/cricket';
 import { getRunRate, getManhattanData, getWormData } from '@/lib/match-utils';
-import { ChevronLeft, Share2, BarChart3, LineChart, Info } from 'lucide-react';
+import { ChevronLeft, Share2, BarChart3, LineChart, Info, Trophy } from 'lucide-react';
 import ScoringInterface from '@/components/scoring/ScoringInterface';
 import MatchScorecard from '@/components/scorecard/MatchScorecard';
 import { useToast } from "@/hooks/use-toast";
