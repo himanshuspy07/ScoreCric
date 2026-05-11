@@ -65,13 +65,6 @@ export default function Home() {
             <Activity className="w-5 h-5 text-primary" />
             <h2 className="text-lg sm:text-xl font-black tracking-tight uppercase">Recent Matches</h2>
           </div>
-          {user && (
-            <Link href="/match/setup">
-              <Button variant="ghost" size="sm" className="font-black text-xs text-primary hover:bg-primary/5 uppercase tracking-widest">
-                New Match +
-              </Button>
-            </Link>
-          )}
         </div>
 
         {matchesLoading ? (
