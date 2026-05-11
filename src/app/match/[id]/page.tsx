@@ -8,9 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { getMatchById, saveMatch } from '@/lib/storage';
-import { Match, Inning } from '@/types/cricket';
+import { Match, Inning, Ball } from '@/types/cricket';
 import { getRunRate, getRequiredRunRate, getManhattanData, getWormData, getWinProbability, getComparativeManhattanData, getComparativeWormData } from '@/lib/match-utils';
-import { ChevronLeft, Share2, BarChart3, LineChart, Info, Trophy, Zap } from 'lucide-react';
+import { ChevronLeft, Share2, BarChart3, LineChart, Info, Trophy, Zap, Activity, Target } from 'lucide-react';
 import ScoringInterface from '@/components/scoring/ScoringInterface';
 import MatchScorecard from '@/components/scorecard/MatchScorecard';
 import { useToast } from "@/hooks/use-toast";
@@ -115,6 +115,76 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
     }
   };
 
+  const renderTimeline = () => {
+    const allEvents: { ball: Ball; inningIdx: number; team: string }[] = [];
+    match.innings.forEach((inn, idx) => {
+      if (!inn) return;
+      inn.balls.forEach(b => {
+        if (b.isWicket || b.runs >= 4) {
+          allEvents.push({ ball: b, inningIdx: idx + 1, team: inn.battingTeam });
+        }
+      });
+    });
+
+    // Show most recent events first
+    allEvents.reverse();
+
+    if (allEvents.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-20 text-muted-foreground bg-white/50 rounded-2xl border-2 border-dashed">
+          <Activity className="w-12 h-12 mb-4 opacity-20" />
+          <p className="font-bold text-sm">No major events yet</p>
+          <p className="text-[10px] uppercase tracking-widest mt-1">Boundaries and wickets appear here</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4 px-2">
+        {allEvents.map((ev, i) => (
+          <div key={ev.ball.id} className="relative flex gap-4">
+            {/* Timeline track */}
+            {i !== allEvents.length - 1 && (
+              <div className="absolute left-5 top-10 bottom-0 w-0.5 bg-muted-foreground/10" />
+            )}
+            
+            {/* Event Marker */}
+            <div className={`z-10 flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-black text-xs border-4 border-[#F3FAF4] shadow-md ${
+              ev.ball.isWicket ? 'bg-destructive text-white' : 
+              ev.ball.runs === 4 ? 'bg-blue-600 text-white' : 
+              'bg-green-600 text-white'
+            }`}>
+              {ev.ball.isWicket ? 'W' : ev.ball.runs}
+            </div>
+
+            {/* Event Content */}
+            <Card className="flex-1 shadow-sm border-2 overflow-hidden hover:border-primary/20 transition-colors">
+              <div className="p-3 flex justify-between items-center">
+                <div className="space-y-0.5">
+                   <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-black uppercase tracking-tighter bg-muted px-1.5 py-0.5 rounded text-muted-foreground">Inning {ev.inningIdx}</span>
+                      <span className="text-[10px] font-bold text-muted-foreground">Over {ev.ball.overNumber}.{ev.ball.ballNumber}</span>
+                   </div>
+                   <p className="text-sm font-black leading-tight">
+                     {ev.ball.isWicket 
+                       ? `${ev.ball.batsmanId} dismissed by ${ev.ball.bowlerId}`
+                       : `${ev.ball.batsmanId} hits a ${ev.ball.runs}!`
+                     }
+                   </p>
+                   <p className="text-[10px] font-bold text-muted-foreground/60 uppercase">{ev.team}</p>
+                </div>
+                <div className="text-right">
+                   <p className="text-xs font-black text-primary">{ev.ball.cumulativeScore}/{ev.ball.isWicket ? '?' : ''}</p>
+                   <p className="text-[9px] font-bold text-muted-foreground uppercase opacity-40">Score</p>
+                </div>
+              </div>
+            </Card>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-[#F3FAF4] pb-24">
       <header 
@@ -181,11 +251,12 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
 
       <main className="max-w-4xl mx-auto w-full px-4 pt-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-6 bg-white/50 border shadow-sm p-1 rounded-2xl h-12">
-            <TabsTrigger value="score" className="rounded-xl font-bold text-[10px] uppercase">Scoring</TabsTrigger>
-            <TabsTrigger value="card" className="rounded-xl font-bold text-[10px] uppercase">Card</TabsTrigger>
-            <TabsTrigger value="info" className="rounded-xl font-bold text-[10px] uppercase">Info</TabsTrigger>
-            <TabsTrigger value="stats" className="rounded-xl font-bold text-[10px] uppercase">Stats</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-5 mb-6 bg-white/50 border shadow-sm p-1 rounded-2xl h-12 overflow-x-auto overflow-y-hidden scrollbar-hide">
+            <TabsTrigger value="score" className="rounded-xl font-bold text-[9px] uppercase">Score</TabsTrigger>
+            <TabsTrigger value="card" className="rounded-xl font-bold text-[9px] uppercase">Card</TabsTrigger>
+            <TabsTrigger value="timeline" className="rounded-xl font-bold text-[9px] uppercase">Story</TabsTrigger>
+            <TabsTrigger value="stats" className="rounded-xl font-bold text-[9px] uppercase">Stats</TabsTrigger>
+            <TabsTrigger value="info" className="rounded-xl font-bold text-[9px] uppercase">Info</TabsTrigger>
           </TabsList>
 
           <TabsContent value="score">
@@ -205,6 +276,10 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
 
           <TabsContent value="card">
             <MatchScorecard match={match} />
+          </TabsContent>
+
+          <TabsContent value="timeline">
+            {renderTimeline()}
           </TabsContent>
 
           <TabsContent value="info">
