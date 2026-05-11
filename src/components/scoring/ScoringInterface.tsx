@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Match, Inning, Ball, DismissalType } from '@/types/cricket';
-import { Users, PlayCircle, Undo2 } from 'lucide-react';
+import { Users, PlayCircle, Undo2, ChevronRight } from 'lucide-react';
 
 interface ScoringInterfaceProps {
   match: Match;
@@ -30,19 +30,15 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
   const [isWicketOpen, setIsWicketOpen] = useState(false);
   const [wicketType, setWicketType] = useState<DismissalType>('bowled');
 
-  // Auto-set striker/non-striker/bowler based on current inning state
   useEffect(() => {
     if (currentInning.balls.length > 0) {
       const lastBall = currentInning.balls[currentInning.balls.length - 1];
-      
-      // If the over finished, swap striker/non-striker and clear bowler
       const overFinished = currentInning.ballsInOver === 0 && currentInning.overs > 0 && !lastBall.isWide && !lastBall.isNoBall;
       
       if (!strikerId) {
         if (lastBall.isWicket) {
           setNonStrikerId(lastBall.nonStrikerId);
         } else {
-          // If runs were odd, striker swapped
           const runsRotate = lastBall.runs % 2 !== 0;
           if (overFinished) {
              setStrikerId(runsRotate ? lastBall.batsmanId : lastBall.nonStrikerId);
@@ -89,7 +85,6 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
       ballNumber: newInning.ballsInOver + 1
     };
 
-    // Initialize player stats if not exists
     if (!newInning.batsmen[strikerId]) {
       newInning.batsmen[strikerId] = { id: strikerId, name: strikerId, runs: 0, balls: 0, fours: 0, sixes: 0, isOut: false };
     }
@@ -100,7 +95,6 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
     const batsman = newInning.batsmen[strikerId];
     const bowler = newInning.bowlers[bowlerId];
 
-    // Score calculations
     if (ball.isWide) {
       newInning.extras.wides += 1;
     } else if (ball.isNoBall) {
@@ -110,16 +104,14 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
       if (newInning.ballsInOver === 6) {
         newInning.overs += 1;
         newInning.ballsInOver = 0;
-        // Auto swap striker on over change
         setStrikerId(nonStrikerId);
         setNonStrikerId(strikerId);
-        setBowlerId(''); // Force select new bowler
+        setBowlerId('');
       }
     }
 
     newInning.score += runsToAdd;
     
-    // Update Batsman
     if (!ball.isWide && !ball.isByes && !ball.isLegByes) {
       batsman.runs += runs;
       if (runs === 4) batsman.fours += 1;
@@ -129,7 +121,6 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
       batsman.balls += 1;
     }
 
-    // Update Bowler
     if (!ball.isByes && !ball.isLegByes) {
       bowler.runsConceded += runsToAdd;
     }
@@ -145,7 +136,6 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
       bowler.wickets += 1;
     }
 
-    // Handle Wicket
     if (ball.isWicket) {
       newInning.wickets += 1;
       batsman.isOut = true;
@@ -156,9 +146,8 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
         score: newInning.score,
         overs: `${newInning.overs}.${newInning.ballsInOver}`
       });
-      setStrikerId(''); // New batsman needed
+      setStrikerId('');
     } else {
-      // Rotate strike
       if (runs % 2 !== 0) {
         setStrikerId(nonStrikerId);
         setNonStrikerId(strikerId);
@@ -174,34 +163,12 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
 
     const balls = [...currentInning.balls];
     const undoneBall = balls.pop()!;
-
-    // Instead of complex reversal, we rebuild the inning stats from the remaining balls
-    const rebuiltInning: Inning = {
-      battingTeam: currentInning.battingTeam,
-      bowlingTeam: currentInning.bowlingTeam,
-      score: 0,
-      wickets: 0,
-      overs: 0,
-      ballsInOver: 0,
-      extras: { wides: 0, noBalls: 0, byes: 0, legByes: 0, penalty: 0 },
-      balls: [],
-      batsmen: {},
-      bowlers: {},
-      fallOfWickets: []
-    };
-
-    // Re-set the UI selectors to the state before the undone ball
+    
     setStrikerId(undoneBall.batsmanId);
     setNonStrikerId(undoneBall.nonStrikerId);
     setBowlerId(undoneBall.bowlerId);
 
-    // Re-apply each ball except the undone one to rebuild the state
-    // We can just call onUpdate with the shortened balls array if the match page handles rebuilding
-    // But for MVP simplicity, we'll let the user manually fix selectors if they need to
-    
     const newInning = { ...currentInning, balls };
-    
-    // Quick recalculation for basic stats
     let totalScore = 0;
     let totalWickets = 0;
     let totalOvers = 0;
@@ -273,18 +240,18 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
   };
 
   return (
-    <div className="space-y-4">
-      <Card className="border-primary/20 bg-primary/5">
+    <div className="space-y-4 sm:space-y-6">
+      <Card className="border-primary/20 bg-white/60 backdrop-blur-sm shadow-sm">
         <CardContent className="pt-6 grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label className="flex items-center gap-1"><Users className="w-4 h-4" /> Striker</Label>
+            <Label className="flex items-center gap-1.5 text-xs font-black text-muted-foreground uppercase tracking-wider"><Users className="w-3.5 h-3.5" /> Striker</Label>
             <Select value={strikerId} onValueChange={setStrikerId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select Striker" />
+              <SelectTrigger className="font-bold border-2 h-11">
+                <SelectValue placeholder="Select" />
               </SelectTrigger>
               <SelectContent>
                 {battingTeamPlayers.players.map(p => (
-                  <SelectItem key={p} value={p} disabled={currentInning.batsmen[p]?.isOut || p === nonStrikerId}>
+                  <SelectItem key={p} value={p} disabled={currentInning.batsmen[p]?.isOut || p === nonStrikerId} className="font-bold">
                     {p} {currentInning.batsmen[p] ? `(${currentInning.batsmen[p].runs})` : ''}
                   </SelectItem>
                 ))}
@@ -292,14 +259,14 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
             </Select>
           </div>
           <div className="space-y-2">
-            <Label className="flex items-center gap-1"><Users className="w-4 h-4" /> Non-Striker</Label>
+            <Label className="flex items-center gap-1.5 text-xs font-black text-muted-foreground uppercase tracking-wider"><Users className="w-3.5 h-3.5" /> Non-Striker</Label>
             <Select value={nonStrikerId} onValueChange={setNonStrikerId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select Non-Striker" />
+              <SelectTrigger className="font-bold border-2 h-11">
+                <SelectValue placeholder="Select" />
               </SelectTrigger>
               <SelectContent>
                 {battingTeamPlayers.players.map(p => (
-                  <SelectItem key={p} value={p} disabled={currentInning.batsmen[p]?.isOut || p === strikerId}>
+                  <SelectItem key={p} value={p} disabled={currentInning.batsmen[p]?.isOut || p === strikerId} className="font-bold">
                     {p} {currentInning.batsmen[p] ? `(${currentInning.batsmen[p].runs})` : ''}
                   </SelectItem>
                 ))}
@@ -307,14 +274,14 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
             </Select>
           </div>
           <div className="col-span-2 space-y-2">
-            <Label className="flex items-center gap-1"><PlayCircle className="w-4 h-4" /> Current Bowler</Label>
+            <Label className="flex items-center gap-1.5 text-xs font-black text-muted-foreground uppercase tracking-wider"><PlayCircle className="w-3.5 h-3.5" /> Current Bowler</Label>
             <Select value={bowlerId} onValueChange={setBowlerId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select Bowler" />
+              <SelectTrigger className="font-bold border-2 h-11">
+                <SelectValue placeholder="Select Active Bowler" />
               </SelectTrigger>
               <SelectContent>
                 {bowlingTeamPlayers.players.map(p => (
-                  <SelectItem key={p} value={p}>
+                  <SelectItem key={p} value={p} className="font-bold">
                     {p} {currentInning.bowlers[p] ? `(${currentInning.bowlers[p].wickets}-${currentInning.bowlers[p].runsConceded})` : ''}
                   </SelectItem>
                 ))}
@@ -324,83 +291,88 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-4 gap-2 sm:gap-3">
         {[0, 1, 2, 3, 4, 6].map(run => (
           <Button 
             key={run} 
             onClick={() => addBall(run)} 
-            className="h-14 text-xl font-bold bg-white text-primary border-2 border-primary/20 hover:bg-primary/10"
+            className={`h-14 sm:h-16 text-xl sm:text-2xl font-black bg-white text-primary border-2 border-primary/20 hover:bg-primary/5 active:scale-95 shadow-sm rounded-xl ${run === 4 ? 'text-blue-600 border-blue-100' : run === 6 ? 'text-green-600 border-green-100' : ''}`}
           >
             {run}
           </Button>
         ))}
         <Button 
           onClick={() => addBall(0, { isWide: true })} 
-          className="h-14 text-lg font-bold bg-amber-50 text-amber-700 border-2 border-amber-200"
+          className="h-14 sm:h-16 text-lg font-black bg-amber-50 text-amber-700 border-2 border-amber-200 active:scale-95 shadow-sm rounded-xl"
         >
           WD
         </Button>
         <Button 
           onClick={() => addBall(0, { isNoBall: true })} 
-          className="h-14 text-lg font-bold bg-blue-50 text-blue-700 border-2 border-blue-200"
+          className="h-14 sm:h-16 text-lg font-black bg-blue-50 text-blue-700 border-2 border-blue-200 active:scale-95 shadow-sm rounded-xl"
         >
           NB
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-3">
         <Dialog open={isWicketOpen} onOpenChange={setIsWicketOpen}>
           <DialogTrigger asChild>
-            <Button variant="destructive" className="h-14 text-lg font-bold">WICKET</Button>
+            <Button variant="destructive" className="h-14 sm:h-16 text-lg font-black shadow-lg shadow-destructive/20 rounded-xl active:scale-95">WICKET</Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="w-[90%] rounded-2xl sm:w-full">
             <DialogHeader>
-              <DialogTitle>How did the wicket fall?</DialogTitle>
+              <DialogTitle className="text-xl font-black text-destructive">How did the wicket fall?</DialogTitle>
             </DialogHeader>
-            <div className="py-4">
+            <div className="py-6">
               <Select value={wicketType} onValueChange={v => setWicketType(v as DismissalType)}>
-                <SelectTrigger>
+                <SelectTrigger className="h-12 border-2 font-bold">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="bowled">Bowled</SelectItem>
-                  <SelectItem value="caught">Caught</SelectItem>
-                  <SelectItem value="lbw">LBW</SelectItem>
-                  <SelectItem value="run out">Run Out</SelectItem>
-                  <SelectItem value="stumped">Stumped</SelectItem>
-                  <SelectItem value="retired">Retired</SelectItem>
+                  <SelectItem value="bowled" className="font-bold">Bowled</SelectItem>
+                  <SelectItem value="caught" className="font-bold">Caught</SelectItem>
+                  <SelectItem value="lbw" className="font-bold">LBW</SelectItem>
+                  <SelectItem value="run out" className="font-bold">Run Out</SelectItem>
+                  <SelectItem value="stumped" className="font-bold">Stumped</SelectItem>
+                  <SelectItem value="hit wicket" className="font-bold">Hit Wicket</SelectItem>
+                  <SelectItem value="retired" className="font-bold">Retired</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <DialogFooter>
-              <Button onClick={handleWicket} variant="destructive">Confirm Wicket</Button>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button onClick={() => setIsWicketOpen(false)} variant="outline" className="rounded-xl font-bold h-12">Cancel</Button>
+              <Button onClick={handleWicket} variant="destructive" className="rounded-xl font-black h-12">Confirm Wicket</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
         <Button 
           variant="outline" 
           onClick={undoLastBall}
-          className="h-14 text-lg font-bold gap-2"
+          className="h-14 sm:h-16 text-lg font-black gap-2 border-2 rounded-xl active:scale-95 shadow-sm"
           disabled={currentInning.balls.length === 0}
         >
           <Undo2 className="w-5 h-5" /> UNDO
         </Button>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto py-2">
+      <div className="flex items-center gap-2 overflow-x-auto pb-4 pt-2 -mx-2 px-2 scrollbar-hide">
         {currentInning.balls.slice(-12).map((b, i) => (
           <div 
             key={b.id} 
-            className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border ${
-              b.isWicket ? 'bg-red-500 text-white border-red-600' : 
-              b.runs === 4 ? 'bg-blue-500 text-white border-blue-600' :
-              b.runs === 6 ? 'bg-green-500 text-white border-green-600' :
-              'bg-muted border-muted-foreground/20'
+            className={`flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-xs sm:text-sm font-black border-2 shadow-sm animate-in slide-in-from-right-2 ${
+              b.isWicket ? 'bg-destructive text-white border-destructive shadow-destructive/20' : 
+              b.runs === 4 ? 'bg-blue-600 text-white border-blue-600 shadow-blue-200' :
+              b.runs === 6 ? 'bg-green-600 text-white border-green-600 shadow-green-200' :
+              'bg-white text-primary border-primary/10'
             }`}
           >
             {b.isWicket ? 'W' : (b.isWide ? 'Wd' : (b.isNoBall ? 'Nb' : b.runs))}
           </div>
         ))}
+        {currentInning.balls.length === 0 && (
+          <div className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest py-3">No balls bowled yet</div>
+        )}
       </div>
     </div>
   );

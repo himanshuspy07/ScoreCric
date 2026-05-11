@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getMatchById, saveMatch } from '@/lib/storage';
 import { Match, Inning } from '@/types/cricket';
 import { getRunRate, getManhattanData, getWormData } from '@/lib/match-utils';
-import { ChevronLeft, Share2, BarChart3, LineChart } from 'lucide-react';
+import { ChevronLeft, Share2, BarChart3, LineChart, Info } from 'lucide-react';
 import ScoringInterface from '@/components/scoring/ScoringInterface';
 import MatchScorecard from '@/components/scorecard/MatchScorecard';
 import { useToast } from "@/hooks/use-toast";
@@ -45,14 +45,12 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       updatedAt: Date.now()
     };
     
-    // Check if inning is over
     const oversFinished = updatedInning.overs >= match.oversLimit;
     const allOut = updatedInning.wickets >= 10;
     const targetAchieved = match.currentInning === 2 && updatedInning.score > (match.innings[0]?.score || 0);
 
     if (oversFinished || allOut || targetAchieved) {
       if (match.currentInning === 1) {
-        // Prepare 2nd Inning if it doesn't exist
         if (!match.innings[1]) {
           const nextInning: Inning = {
             battingTeam: updatedInning.bowlingTeam,
@@ -72,7 +70,6 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           toast({ title: "Inning Finished", description: "First inning completed. Start second inning scoring." });
         }
       } else {
-        // Match Completed
         updatedMatch.status = 'completed';
         const score1 = match.innings[0]!.score;
         const score2 = updatedInning.score;
@@ -123,37 +120,39 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
   };
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      <header className="sticky top-0 z-40 bg-primary text-primary-foreground p-4 shadow-md">
-        <div className="flex items-center justify-between mb-2">
-          <Button variant="ghost" size="icon" onClick={() => router.push('/')}>
+    <div className="min-h-screen bg-[#F3FAF4] pb-24">
+      <header className="sticky top-0 z-40 bg-primary text-primary-foreground p-3 sm:p-5 shadow-lg shadow-primary/10">
+        <div className="flex items-center justify-between mb-4 sm:mb-6">
+          <Button variant="ghost" size="icon" className="hover:bg-white/10 active:scale-90" onClick={() => router.push('/')}>
             <ChevronLeft className="w-6 h-6" />
           </Button>
           <div className="text-center">
-            <h2 className="text-sm font-medium opacity-80">{match.title}</h2>
-            <p className="text-xs">{match.format} • {match.oversLimit} Overs</p>
+            <h2 className="text-xs sm:text-sm font-bold opacity-80 uppercase tracking-widest">{match.title || "Match"}</h2>
+            <p className="text-[10px] sm:text-xs font-medium bg-white/10 px-2 py-0.5 rounded-full mt-1">{match.format} • {match.oversLimit} Overs</p>
           </div>
-          <Button variant="ghost" size="icon" onClick={handleShare}>
+          <Button variant="ghost" size="icon" className="hover:bg-white/10 active:scale-90" onClick={handleShare}>
             <Share2 className="w-5 h-5" />
           </Button>
         </div>
 
-        <div className="flex justify-between items-end mt-4">
+        <div className="flex justify-between items-end">
           <div>
-            <h1 className="text-3xl font-bold font-headline">
-              {currentInning.score}/{currentInning.wickets}
+            <h1 className="text-3xl sm:text-5xl font-black font-headline tracking-tighter">
+              {currentInning.score}<span className="text-white/40">/</span>{currentInning.wickets}
             </h1>
-            <p className="text-sm opacity-90">
-              Overs: {currentInning.overs}.{currentInning.ballsInOver} ({match.oversLimit})
+            <p className="text-xs sm:text-sm font-bold opacity-75 mt-1">
+              Overs: {currentInning.overs}.{currentInning.ballsInOver} <span className="text-white/30 text-[10px]">({match.oversLimit})</span>
             </p>
           </div>
-          <div className="text-right">
-            <p className="text-sm font-semibold text-secondary">
-              CRR: {getRunRate(currentInning.score, currentInning.overs * 6 + currentInning.ballsInOver)}
-            </p>
+          <div className="text-right flex flex-col items-end gap-1">
+            <div className="bg-secondary px-3 py-1 rounded-lg shadow-sm">
+               <p className="text-xs sm:text-sm font-black text-white">
+                CRR: {getRunRate(currentInning.score, currentInning.overs * 6 + currentInning.ballsInOver)}
+              </p>
+            </div>
             {match.currentInning === 2 && match.innings[0] && (
-              <p className="text-xs opacity-90">
-                Target: {match.innings[0].score + 1}
+              <p className="text-[10px] sm:text-xs font-black bg-white/10 px-2 py-0.5 rounded">
+                TARGET: {match.innings[0].score + 1}
               </p>
             )}
           </div>
@@ -161,71 +160,86 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       </header>
 
       {match.status === 'completed' && (
-        <div className="bg-secondary p-2 text-center text-white font-bold text-sm">
-          MATCH COMPLETED: {match.winner === 'Tie' ? "Match Tied" : `${match.winner} WON`}
+        <div className="bg-secondary/90 backdrop-blur-md p-3 text-center text-white font-black text-xs sm:text-sm tracking-tighter shadow-inner">
+          MATCH COMPLETED: {match.winner === 'Tie' ? "MATCH TIED" : `${match.winner.toUpperCase()} WON`}
         </div>
       )}
 
-      <main className="max-w-5xl mx-auto p-2 sm:p-4">
+      <main className="max-w-4xl mx-auto w-full px-2 sm:px-6 pt-4 sm:pt-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-4">
-            <TabsTrigger value="score">Scoring</TabsTrigger>
-            <TabsTrigger value="card">Scorecard</TabsTrigger>
-            <TabsTrigger value="info">Info</TabsTrigger>
-            <TabsTrigger value="stats">Stats</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4 mb-6 bg-white/50 backdrop-blur shadow-sm p-1 rounded-xl h-12">
+            <TabsTrigger value="score" className="rounded-lg font-bold text-xs uppercase tracking-tighter">Scoring</TabsTrigger>
+            <TabsTrigger value="card" className="rounded-lg font-bold text-xs uppercase tracking-tighter">Card</TabsTrigger>
+            <TabsTrigger value="info" className="rounded-lg font-bold text-xs uppercase tracking-tighter">Info</TabsTrigger>
+            <TabsTrigger value="stats" className="rounded-lg font-bold text-xs uppercase tracking-tighter">Stats</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="score">
+          <TabsContent value="score" className="animate-in fade-in zoom-in-95 duration-300">
             {match.status !== 'completed' ? (
               <ScoringInterface 
                 match={match} 
                 onUpdate={handleScoreUpdate}
               />
             ) : (
-              <div className="text-center py-10 space-y-4">
-                <p className="text-muted-foreground">This match has ended.</p>
-                <Button onClick={() => setActiveTab('card')}>View Full Scorecard</Button>
-              </div>
+              <Card className="text-center py-16 sm:py-24 space-y-6 bg-white/50 border-2">
+                <div className="bg-primary/10 p-5 rounded-full w-fit mx-auto">
+                   <Trophy className="w-10 h-10 text-primary" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xl font-black text-primary">Match Ended</p>
+                  <p className="text-sm text-muted-foreground font-medium">This match has been completed.</p>
+                </div>
+                <Button onClick={() => setActiveTab('card')} className="px-8 font-bold shadow-lg">View Full Scorecard</Button>
+              </Card>
             )}
           </TabsContent>
 
-          <TabsContent value="card">
+          <TabsContent value="card" className="animate-in slide-in-from-bottom-4 duration-300">
             <MatchScorecard match={match} />
           </TabsContent>
 
-          <TabsContent value="info">
-            <Card>
-              <CardContent className="pt-6 space-y-4">
-                <div className="flex justify-between border-b pb-2">
-                  <span className="text-muted-foreground">Toss</span>
-                  <span className="font-medium">{match.tossWinner} won & elected to {match.tossChoice}</span>
+          <TabsContent value="info" className="animate-in slide-in-from-bottom-4 duration-300">
+            <Card className="border-2 shadow-sm overflow-hidden">
+              <CardHeader className="bg-primary/5 py-4">
+                <CardTitle className="text-sm font-black flex items-center gap-2 text-primary">
+                  <Info className="w-4 h-4" /> MATCH INFORMATION
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6 space-y-4 px-4 sm:px-6">
+                <div className="flex justify-between items-center border-b border-primary/5 pb-3">
+                  <span className="text-xs sm:text-sm font-bold text-muted-foreground/80">Toss</span>
+                  <span className="text-xs sm:text-sm font-black text-foreground">{match.tossWinner} won & elected to {match.tossChoice}</span>
                 </div>
-                <div className="flex justify-between border-b pb-2">
-                  <span className="text-muted-foreground">Date</span>
-                  <span className="font-medium">{new Date(match.createdAt).toLocaleDateString()}</span>
+                <div className="flex justify-between items-center border-b border-primary/5 pb-3">
+                  <span className="text-xs sm:text-sm font-bold text-muted-foreground/80">Date</span>
+                  <span className="text-xs sm:text-sm font-black text-foreground">{new Date(match.createdAt).toLocaleDateString(undefined, { dateStyle: 'long' })}</span>
                 </div>
-                <div className="flex justify-between border-b pb-2">
-                  <span className="text-muted-foreground">Status</span>
-                  <span className="capitalize font-medium">{match.status}</span>
+                <div className="flex justify-between items-center border-b border-primary/5 pb-3">
+                  <span className="text-xs sm:text-sm font-bold text-muted-foreground/80">Status</span>
+                  <span className="capitalize text-xs sm:text-sm font-black text-primary bg-primary/10 px-3 py-0.5 rounded-full">{match.status}</span>
+                </div>
+                <div className="flex justify-between items-center pt-2">
+                  <span className="text-xs sm:text-sm font-bold text-muted-foreground/80">Match ID</span>
+                  <span className="text-[10px] font-mono text-muted-foreground">{match.id}</span>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="stats">
+          <TabsContent value="stats" className="animate-in slide-in-from-bottom-4 duration-300">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-              <Card className="flex flex-col">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <BarChart3 className="w-4 h-4 text-primary" /> Manhattan Chart
+              <Card className="flex flex-col border-2 shadow-sm overflow-hidden">
+                <CardHeader className="pb-2 bg-primary/5">
+                  <CardTitle className="text-sm sm:text-base font-black flex items-center gap-2 text-primary">
+                    <BarChart3 className="w-4 h-4" /> Manhattan Chart
                   </CardTitle>
-                  <p className="text-xs text-muted-foreground">Runs scored per over</p>
+                  <p className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider">Runs scored per over</p>
                 </CardHeader>
-                <CardContent className="flex-1 min-h-[300px] sm:min-h-[350px]">
+                <CardContent className="flex-1 min-h-[300px] pt-6">
                   {currentInning.balls.length > 0 ? (
                     <ChartContainer config={{ runs: { label: "Runs", color: "hsl(var(--primary))" } }} className="h-full w-full">
                       <BarChart data={getManhattanData(currentInning)}>
-                        <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                        <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.1} />
                         <XAxis dataKey="over" tickLine={false} axisLine={false} tickMargin={8} />
                         <YAxis tickLine={false} axisLine={false} />
                         <ChartTooltip content={<ChartTooltipContent />} />
@@ -233,34 +247,40 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                       </BarChart>
                     </ChartContainer>
                   ) : (
-                    <div className="h-full flex items-center justify-center text-muted-foreground text-sm py-20">
-                      No data available yet
+                    <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-xs sm:text-sm py-20 gap-3">
+                      <div className="bg-muted p-4 rounded-full">
+                         <BarChart3 className="w-8 h-8 opacity-20" />
+                      </div>
+                      <p className="font-bold opacity-60">No data available yet</p>
                     </div>
                   )}
                 </CardContent>
               </Card>
 
-              <Card className="flex flex-col">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <LineChart className="w-4 h-4 text-secondary" /> Worm Chart
+              <Card className="flex flex-col border-2 shadow-sm overflow-hidden">
+                <CardHeader className="pb-2 bg-secondary/5">
+                  <CardTitle className="text-sm sm:text-base font-black flex items-center gap-2 text-secondary">
+                    <LineChart className="w-4 h-4" /> Worm Chart
                   </CardTitle>
-                  <p className="text-xs text-muted-foreground">Cumulative runs progression</p>
+                  <p className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider">Cumulative runs progression</p>
                 </CardHeader>
-                <CardContent className="flex-1 min-h-[300px] sm:min-h-[350px]">
+                <CardContent className="flex-1 min-h-[300px] pt-6">
                   {currentInning.balls.length > 0 ? (
                     <ChartContainer config={{ score: { label: "Score", color: "hsl(var(--secondary))" } }} className="h-full w-full">
                       <ReLineChart data={getWormData(currentInning)}>
-                        <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                        <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.1} />
                         <XAxis dataKey="over" tickLine={false} axisLine={false} tickMargin={8} />
                         <YAxis tickLine={false} axisLine={false} />
                         <ChartTooltip content={<ChartTooltipContent />} />
-                        <Line type="monotone" dataKey="score" stroke="var(--color-score)" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="score" stroke="var(--color-score)" strokeWidth={3} dot={false} />
                       </ReLineChart>
                     </ChartContainer>
                   ) : (
-                    <div className="h-full flex items-center justify-center text-muted-foreground text-sm py-20">
-                      No data available yet
+                    <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-xs sm:text-sm py-20 gap-3">
+                      <div className="bg-muted p-4 rounded-full">
+                         <LineChart className="w-8 h-8 opacity-20" />
+                      </div>
+                      <p className="font-bold opacity-60">No data available yet</p>
                     </div>
                   )}
                 </CardContent>
@@ -270,8 +290,11 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
         </Tabs>
       </main>
 
-      <footer className="pwa-footer">
-        Made by Himanshu Yadav
+      <footer className="pwa-footer bg-white/90 backdrop-blur-md border-t border-primary/10">
+        <div className="flex items-center justify-center gap-1.5 font-bold tracking-tight text-primary/60">
+          <span className="bg-primary text-white text-[8px] px-1 py-0.5 rounded">SC</span>
+          <span>SCORECRIC</span>
+        </div>
       </footer>
     </div>
   );

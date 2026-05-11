@@ -1,22 +1,23 @@
 
 {
-  "name": "ScoreCric PWA",
+  "name": "ScoreCric - Cricket Scoring",
   "short_name": "ScoreCric",
-  "description": "Professional offline-first cricket scoring app.",
+  "description": "Professional cricket match scoring app with real-time analytics",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F3FAF4",
   "theme_color": "#2C5A37",
   "icons": [
     {
-      "src": "https://placehold.co/192x192/2C5A37/FFFFFF/png?text=SC",
+      "src": "data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 192 192%22><rect width=%22192%22 height=%22192%22 rx=%2240%22 fill=%22%232C5A37%22/><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-family=%22Inter, sans-serif%22 font-weight=%22800%22 font-size=%22100%22 fill=%22white%22>SC</text></svg>",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/svg+xml"
     },
     {
-      "src": "https://placehold.co/512x512/2C5A37/FFFFFF/png?text=ScoreCric",
+      "src": "data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 512 512%22><rect width=%22512%22 height=%22512%22 rx=%22100%22 fill=%22%232C5A37%22/><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-family=%22Inter, sans-serif%22 font-weight=%22800%22 font-size=%22260%22 fill=%22white%22>SC</text></svg>",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/svg+xml"
     }
-  ]
+  ],
+  "orientation": "portrait"
 }
