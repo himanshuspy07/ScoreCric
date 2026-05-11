@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,8 +12,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, Palette } from 'lucide-react';
-import { saveMatch } from '@/lib/storage';
+import { Trophy, Palette, Users, History } from 'lucide-react';
+import { saveMatch, getAllMatches } from '@/lib/storage';
 import { Match, Inning } from '@/types/cricket';
 
 const TEAM_COLORS = [
@@ -28,6 +28,7 @@ const TEAM_COLORS = [
 export default function MatchSetup() {
   const router = useRouter();
   const [step, setStep] = useState(1);
+  const [pastTeams, setPastTeams] = useState<{name: string, players: string[]}[]>([]);
   const [matchInfo, setMatchInfo] = useState({
     title: '',
     format: 'T20',
@@ -42,6 +43,17 @@ export default function MatchSetup() {
     tossWinner: 'teamA',
     tossChoice: 'bat',
   });
+
+  useEffect(() => {
+    const matches = getAllMatches();
+    const teamsMap = new Map<string, string[]>();
+    // Sort by updatedAt descending so we get the most recent version of a team name
+    matches.sort((a, b) => b.updatedAt - a.updatedAt).forEach(m => {
+      if (!teamsMap.has(m.teamA.name)) teamsMap.set(m.teamA.name, m.teamA.players);
+      if (!teamsMap.has(m.teamB.name)) teamsMap.set(m.teamB.name, m.teamB.players);
+    });
+    setPastTeams(Array.from(teamsMap.entries()).map(([name, players]) => ({ name, players })));
+  }, []);
 
   const handleNext = () => setStep(step + 1);
   const handleBack = () => setStep(step - 1);
@@ -80,6 +92,19 @@ export default function MatchSetup() {
       const newPlayers = [...matchInfo.teamBPlayers];
       newPlayers[index] = value;
       setMatchInfo({ ...matchInfo, teamBPlayers: newPlayers });
+    }
+  };
+
+  const handleImport = (team: 'A' | 'B', players: string[]) => {
+    const count = matchInfo.playerCount;
+    const newPlayers = Array.from({ length: count }, (_, i) => 
+      players[i] || `${team} Player ${i + 1}`
+    );
+    
+    if (team === 'A') {
+      setMatchInfo(prev => ({ ...prev, teamAPlayers: newPlayers }));
+    } else {
+      setMatchInfo(prev => ({ ...prev, teamBPlayers: newPlayers }));
     }
   };
 
@@ -257,8 +282,31 @@ export default function MatchSetup() {
                 <TabsTrigger value="teamA" className="font-bold data-[state=active]:bg-white">{matchInfo.teamAName}</TabsTrigger>
                 <TabsTrigger value="teamB" className="font-bold data-[state=active]:bg-white">{matchInfo.teamBName}</TabsTrigger>
               </TabsList>
-              <TabsContent value="teamA">
-                <ScrollArea className="h-[400px] pr-4">
+              
+              <TabsContent value="teamA" className="space-y-4">
+                <div className="flex justify-between items-center px-1">
+                  <div className="flex items-center gap-2 text-xs font-black text-muted-foreground uppercase tracking-wider">
+                    <Users className="w-3.5 h-3.5" /> 
+                    <span>Squad List</span>
+                  </div>
+                  {pastTeams.length > 0 && (
+                    <Select onValueChange={(val) => {
+                      const selected = pastTeams.find(t => t.name === val);
+                      if (selected) handleImport('A', selected.players);
+                    }}>
+                      <SelectTrigger className="w-[140px] h-7 text-[10px] font-bold border-2 rounded-lg bg-white">
+                        <History className="w-3 h-3 mr-1" />
+                        <SelectValue placeholder="Import Recent" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {pastTeams.map(t => (
+                          <SelectItem key={t.name} value={t.name} className="text-xs font-bold">{t.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+                <ScrollArea className="h-[350px] pr-4">
                   <div className="space-y-2">
                     {matchInfo.teamAPlayers.map((name, i) => (
                       <div key={i} className="flex items-center gap-3">
@@ -267,15 +315,38 @@ export default function MatchSetup() {
                           value={name} 
                           onChange={(e) => handlePlayerNameChange('A', i, e.target.value)}
                           placeholder={`Player Name`}
-                          className="h-9"
+                          className="h-9 border-2"
                         />
                       </div>
                     ))}
                   </div>
                 </ScrollArea>
               </TabsContent>
-              <TabsContent value="teamB">
-                <ScrollArea className="h-[400px] pr-4">
+
+              <TabsContent value="teamB" className="space-y-4">
+                <div className="flex justify-between items-center px-1">
+                  <div className="flex items-center gap-2 text-xs font-black text-muted-foreground uppercase tracking-wider">
+                    <Users className="w-3.5 h-3.5" /> 
+                    <span>Squad List</span>
+                  </div>
+                  {pastTeams.length > 0 && (
+                    <Select onValueChange={(val) => {
+                      const selected = pastTeams.find(t => t.name === val);
+                      if (selected) handleImport('B', selected.players);
+                    }}>
+                      <SelectTrigger className="w-[140px] h-7 text-[10px] font-bold border-2 rounded-lg bg-white">
+                        <History className="w-3 h-3 mr-1" />
+                        <SelectValue placeholder="Import Recent" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {pastTeams.map(t => (
+                          <SelectItem key={t.name} value={t.name} className="text-xs font-bold">{t.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+                <ScrollArea className="h-[350px] pr-4">
                   <div className="space-y-2">
                     {matchInfo.teamBPlayers.map((name, i) => (
                       <div key={i} className="flex items-center gap-3">
@@ -284,7 +355,7 @@ export default function MatchSetup() {
                           value={name} 
                           onChange={(e) => handlePlayerNameChange('B', i, e.target.value)}
                           placeholder={`Player Name`}
-                          className="h-9"
+                          className="h-9 border-2"
                         />
                       </div>
                     ))}
