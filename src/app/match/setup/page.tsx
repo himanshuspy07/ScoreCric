@@ -10,7 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
-import { Trophy, Users, Layout } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Trophy, Users, Layout, UserCog } from 'lucide-react';
 import { saveMatch } from '@/lib/storage';
 import { Match, Inning } from '@/types/cricket';
 
@@ -23,12 +25,26 @@ export default function MatchSetup() {
     overs: '20',
     teamAName: 'Team A',
     teamBName: 'Team B',
+    teamAPlayers: Array.from({length: 11}, (_, i) => `A Player ${i+1}`),
+    teamBPlayers: Array.from({length: 11}, (_, i) => `B Player ${i+1}`),
     tossWinner: 'teamA',
     tossChoice: 'bat',
   });
 
   const handleNext = () => setStep(step + 1);
   const handleBack = () => setStep(step - 1);
+
+  const handlePlayerNameChange = (team: 'A' | 'B', index: number, value: string) => {
+    if (team === 'A') {
+      const newPlayers = [...matchInfo.teamAPlayers];
+      newPlayers[index] = value;
+      setMatchInfo({ ...matchInfo, teamAPlayers: newPlayers });
+    } else {
+      const newPlayers = [...matchInfo.teamBPlayers];
+      newPlayers[index] = value;
+      setMatchInfo({ ...matchInfo, teamBPlayers: newPlayers });
+    }
+  };
 
   const createInning = (batting: string, bowling: string): Inning => ({
     battingTeam: batting,
@@ -57,8 +73,8 @@ export default function MatchSetup() {
       title: matchInfo.title || `${matchInfo.teamAName} vs ${matchInfo.teamBName}`,
       format: matchInfo.format as any,
       oversLimit: parseInt(matchInfo.overs),
-      teamA: { name: matchInfo.teamAName, players: Array.from({length: 11}, (_, i) => `Player ${i+1}`) },
-      teamB: { name: matchInfo.teamBName, players: Array.from({length: 11}, (_, i) => `Player ${i+1}`) },
+      teamA: { name: matchInfo.teamAName, players: matchInfo.teamAPlayers },
+      teamB: { name: matchInfo.teamBName, players: matchInfo.teamBPlayers },
       tossWinner: matchInfo.tossWinner === 'teamA' ? matchInfo.teamAName : matchInfo.teamBName,
       tossChoice: matchInfo.tossChoice as any,
       status: 'live',
@@ -84,9 +100,10 @@ export default function MatchSetup() {
           <CardTitle>
             {step === 1 && "Match Details"}
             {step === 2 && "Team Information"}
-            {step === 3 && "Toss Details"}
+            {step === 3 && "Squad Setup"}
+            {step === 4 && "Toss Details"}
           </CardTitle>
-          <CardDescription>Step {step} of 3</CardDescription>
+          <CardDescription>Step {step} of 4</CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
           {step === 1 && (
@@ -148,6 +165,47 @@ export default function MatchSetup() {
           )}
 
           {step === 3 && (
+            <Tabs defaultValue="teamA" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-4">
+                <TabsTrigger value="teamA">{matchInfo.teamAName}</TabsTrigger>
+                <TabsTrigger value="teamB">{matchInfo.teamBName}</TabsTrigger>
+              </TabsList>
+              <TabsContent value="teamA">
+                <ScrollArea className="h-[400px] pr-4">
+                  <div className="space-y-3">
+                    {matchInfo.teamAPlayers.map((name, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground w-6">{i + 1}.</span>
+                        <Input 
+                          value={name} 
+                          onChange={(e) => handlePlayerNameChange('A', i, e.target.value)}
+                          placeholder={`Player ${i + 1} Name`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+              <TabsContent value="teamB">
+                <ScrollArea className="h-[400px] pr-4">
+                  <div className="space-y-3">
+                    {matchInfo.teamBPlayers.map((name, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground w-6">{i + 1}.</span>
+                        <Input 
+                          value={name} 
+                          onChange={(e) => handlePlayerNameChange('B', i, e.target.value)}
+                          placeholder={`Player ${i + 1} Name`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+            </Tabs>
+          )}
+
+          {step === 4 && (
             <div className="space-y-6">
               <div className="space-y-3">
                 <Label className="text-lg font-semibold">Who won the toss?</Label>
@@ -187,7 +245,7 @@ export default function MatchSetup() {
         ) : (
           <Button variant="outline" onClick={() => router.push('/')} className="flex-1 py-6">Cancel</Button>
         )}
-        {step < 3 ? (
+        {step < 4 ? (
           <Button onClick={handleNext} className="flex-1 py-6">Next</Button>
         ) : (
           <Button onClick={handleSubmit} className="flex-1 py-6 bg-secondary hover:bg-secondary/90">Start Match</Button>
