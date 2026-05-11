@@ -12,10 +12,12 @@ import { formatOverCount, getRunRate } from '@/lib/match-utils';
 import { ChevronLeft, Share2, Info, ListOrdered, UserPlus, Table2 } from 'lucide-react';
 import ScoringInterface from '@/components/scoring/ScoringInterface';
 import MatchScorecard from '@/components/scorecard/MatchScorecard';
+import { useToast } from "@/hooks/use-toast";
 
 export default function MatchPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const router = useRouter();
+  const { toast } = useToast();
   const [match, setMatch] = useState<Match | null>(null);
   const [activeTab, setActiveTab] = useState('score');
 
@@ -84,15 +86,40 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
   };
 
   const handleShare = async () => {
+    const shareText = `${match.teamA.name} vs ${match.teamB.name}\nScore: ${currentInning.score}/${currentInning.wickets} in ${currentInning.overs}.${currentInning.ballsInOver} overs`;
+    const shareUrl = window.location.href;
+
     if (navigator.share) {
       try {
         await navigator.share({
           title: 'ScoreCric Match Update',
-          text: `${match.teamA.name} vs ${match.teamB.name}\nScore: ${currentInning.score}/${currentInning.wickets} in ${currentInning.overs}.${currentInning.ballsInOver} overs`,
-          url: window.location.href,
+          text: shareText,
+          url: shareUrl,
         });
-      } catch (error) {
-        console.error('Share failed', error);
+      } catch (error: any) {
+        // Handle case where user cancels or browser blocks it
+        if (error.name !== 'AbortError') {
+          try {
+            await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+          } catch (clipboardError) {
+            toast({
+              variant: "destructive",
+              title: "Share failed",
+              description: "Could not share or copy link to clipboard."
+            });
+          }
+        }
+      }
+    } else {
+      // Fallback for browsers that don't support Web Share API
+      try {
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+      } catch (e) {
+        toast({
+          variant: "destructive",
+          title: "Copy failed",
+          description: "Could not copy link to clipboard."
+        });
       }
     }
   };
