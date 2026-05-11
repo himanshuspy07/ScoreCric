@@ -4,15 +4,17 @@
 import React, { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getMatchById, saveMatch } from '@/lib/storage';
-import { Match, Inning, Ball, PlayerStats, BowlerStats, DismissalType } from '@/types/cricket';
-import { formatOverCount, getRunRate } from '@/lib/match-utils';
-import { ChevronLeft, Share2, Info, ListOrdered, UserPlus, Table2 } from 'lucide-react';
+import { Match, Inning } from '@/types/cricket';
+import { getRunRate, getManhattanData, getWormData } from '@/lib/match-utils';
+import { ChevronLeft, Share2, BarChart3, LineChart } from 'lucide-react';
 import ScoringInterface from '@/components/scoring/ScoringInterface';
 import MatchScorecard from '@/components/scorecard/MatchScorecard';
 import { useToast } from "@/hooks/use-toast";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Line, LineChart as ReLineChart, ResponsiveContainer } from 'recharts';
 
 export default function MatchPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -50,22 +52,25 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
 
     if (oversFinished || allOut || targetAchieved) {
       if (match.currentInning === 1) {
-        // Prepare 2nd Inning
-        const nextInning: Inning = {
-          battingTeam: updatedInning.bowlingTeam,
-          bowlingTeam: updatedInning.battingTeam,
-          score: 0,
-          wickets: 0,
-          overs: 0,
-          ballsInOver: 0,
-          extras: { wides: 0, noBalls: 0, byes: 0, legByes: 0, penalty: 0 },
-          balls: [],
-          batsmen: {},
-          bowlers: {},
-          fallOfWickets: []
-        };
-        updatedMatch.currentInning = 2;
-        updatedMatch.innings[1] = nextInning;
+        // Prepare 2nd Inning if it doesn't exist
+        if (!match.innings[1]) {
+          const nextInning: Inning = {
+            battingTeam: updatedInning.bowlingTeam,
+            bowlingTeam: updatedInning.battingTeam,
+            score: 0,
+            wickets: 0,
+            overs: 0,
+            ballsInOver: 0,
+            extras: { wides: 0, noBalls: 0, byes: 0, legByes: 0, penalty: 0 },
+            balls: [],
+            batsmen: {},
+            bowlers: {},
+            fallOfWickets: []
+          };
+          updatedMatch.currentInning = 2;
+          updatedMatch.innings[1] = nextInning;
+          toast({ title: "Inning Finished", description: "First inning completed. Start second inning scoring." });
+        }
       } else {
         // Match Completed
         updatedMatch.status = 'completed';
@@ -78,6 +83,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
         } else {
           updatedMatch.winner = 'Tie';
         }
+        toast({ title: "Match Completed", description: updatedMatch.winner === 'Tie' ? "Match Tied!" : `${updatedMatch.winner} Won!` });
       }
     }
 
@@ -97,36 +103,27 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           url: shareUrl,
         });
       } catch (error: any) {
-        // Handle case where user cancels or browser blocks it
         if (error.name !== 'AbortError') {
           try {
             await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+            toast({ title: "Copied", description: "Match details copied to clipboard." });
           } catch (clipboardError) {
-            toast({
-              variant: "destructive",
-              title: "Share failed",
-              description: "Could not share or copy link to clipboard."
-            });
+            toast({ variant: "destructive", title: "Share failed", description: "Could not share or copy link." });
           }
         }
       }
     } else {
-      // Fallback for browsers that don't support Web Share API
       try {
         await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+        toast({ title: "Copied", description: "Match details copied to clipboard." });
       } catch (e) {
-        toast({
-          variant: "destructive",
-          title: "Copy failed",
-          description: "Could not copy link to clipboard."
-        });
+        toast({ variant: "destructive", title: "Copy failed", description: "Could not copy link." });
       }
     }
   };
 
   return (
     <div className="min-h-screen bg-background pb-20">
-      {/* Sticky Header */}
       <header className="sticky top-0 z-40 bg-primary text-primary-foreground p-4 shadow-md">
         <div className="flex items-center justify-between mb-2">
           <Button variant="ghost" size="icon" onClick={() => router.push('/')}>
@@ -154,9 +151,9 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
             <p className="text-sm font-semibold text-secondary">
               CRR: {getRunRate(currentInning.score, currentInning.overs * 6 + currentInning.ballsInOver)}
             </p>
-            {match.currentInning === 2 && (
+            {match.currentInning === 2 && match.innings[0] && (
               <p className="text-xs opacity-90">
-                Target: {match.innings[0]!.score + 1}
+                Target: {match.innings[0].score + 1}
               </p>
             )}
           </div>
@@ -175,7 +172,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
             <TabsTrigger value="score">Scoring</TabsTrigger>
             <TabsTrigger value="card">Scorecard</TabsTrigger>
             <TabsTrigger value="info">Info</TabsTrigger>
-            <TabsTrigger value="more">Stats</TabsTrigger>
+            <TabsTrigger value="stats">Stats</TabsTrigger>
           </TabsList>
 
           <TabsContent value="score">
@@ -215,9 +212,61 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
             </Card>
           </TabsContent>
 
-          <TabsContent value="more">
-            <div className="text-center py-10 text-muted-foreground">
-              Detailed wagon wheel and Manhattan charts coming soon...
+          <TabsContent value="stats">
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4 text-primary" /> Manhattan Chart (Runs per Over)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[200px] w-full">
+                    {currentInning.balls.length > 0 ? (
+                      <ChartContainer config={{ runs: { label: "Runs", color: "hsl(var(--primary))" } }}>
+                        <BarChart data={getManhattanData(currentInning)}>
+                          <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                          <XAxis dataKey="over" tickLine={false} axisLine={false} tickMargin={8} />
+                          <YAxis tickLine={false} axisLine={false} />
+                          <ChartTooltip content={<ChartTooltipContent />} />
+                          <Bar dataKey="runs" fill="var(--color-runs)" radius={4} />
+                        </BarChart>
+                      </ChartContainer>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+                        No data yet
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <LineChart className="w-4 h-4 text-secondary" /> Worm Chart (Cumulative Score)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[200px] w-full">
+                    {currentInning.balls.length > 0 ? (
+                      <ChartContainer config={{ score: { label: "Score", color: "hsl(var(--secondary))" } }}>
+                        <ReLineChart data={getWormData(currentInning)}>
+                          <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                          <XAxis dataKey="over" tickLine={false} axisLine={false} tickMargin={8} />
+                          <YAxis tickLine={false} axisLine={false} />
+                          <ChartTooltip content={<ChartTooltipContent />} />
+                          <Line type="monotone" dataKey="score" stroke="var(--color-score)" strokeWidth={2} dot={false} />
+                        </ReLineChart>
+                      </ChartContainer>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+                        No data yet
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
         </Tabs>

@@ -1,15 +1,14 @@
 
 "use client"
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
-import { Match, Inning, Ball, PlayerStats, BowlerStats, DismissalType } from '@/types/cricket';
-import { Users, AlertCircle, PlayCircle } from 'lucide-react';
+import { Match, Inning, Ball, DismissalType } from '@/types/cricket';
+import { Users, PlayCircle, Undo2 } from 'lucide-react';
 
 interface ScoringInterfaceProps {
   match: Match;
@@ -31,6 +30,36 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
   const [isWicketOpen, setIsWicketOpen] = useState(false);
   const [wicketType, setWicketType] = useState<DismissalType>('bowled');
 
+  // Auto-set striker/non-striker/bowler based on current inning state
+  useEffect(() => {
+    if (currentInning.balls.length > 0) {
+      const lastBall = currentInning.balls[currentInning.balls.length - 1];
+      
+      // If the over finished, swap striker/non-striker and clear bowler
+      const overFinished = currentInning.ballsInOver === 0 && currentInning.overs > 0 && !lastBall.isWide && !lastBall.isNoBall;
+      
+      if (!strikerId) {
+        if (lastBall.isWicket) {
+          setNonStrikerId(lastBall.nonStrikerId);
+        } else {
+          // If runs were odd, striker swapped
+          const runsRotate = lastBall.runs % 2 !== 0;
+          if (overFinished) {
+             setStrikerId(runsRotate ? lastBall.batsmanId : lastBall.nonStrikerId);
+             setNonStrikerId(runsRotate ? lastBall.nonStrikerId : lastBall.batsmanId);
+          } else {
+             setStrikerId(runsRotate ? lastBall.nonStrikerId : lastBall.batsmanId);
+             setNonStrikerId(runsRotate ? lastBall.batsmanId : lastBall.nonStrikerId);
+          }
+        }
+      }
+      
+      if (!bowlerId && !overFinished) {
+        setBowlerId(lastBall.bowlerId);
+      }
+    }
+  }, [currentInning.balls.length, currentInning.ballsInOver, currentInning.overs]);
+
   const addBall = (runs: number, options: Partial<Ball> = {}) => {
     if (!strikerId || !nonStrikerId || !bowlerId) {
       alert("Please select striker, non-striker and bowler first.");
@@ -38,10 +67,16 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
     }
 
     const newInning = { ...currentInning };
+    let runsToAdd = runs;
+    if (options.isWide || options.isNoBall) {
+      runsToAdd += 1;
+    }
+
     const ball: Ball = {
       id: Math.random().toString(36).substr(2, 9),
       bowlerId,
       batsmanId: strikerId,
+      nonStrikerId: nonStrikerId,
       runs,
       isWide: options.isWide || false,
       isNoBall: options.isNoBall || false,
@@ -49,6 +84,9 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
       isLegByes: options.isLegByes || false,
       isWicket: options.isWicket || false,
       wicketType: options.wicketType,
+      cumulativeScore: newInning.score + runsToAdd,
+      overNumber: newInning.overs,
+      ballNumber: newInning.ballsInOver + 1
     };
 
     // Initialize player stats if not exists
@@ -63,10 +101,10 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
     const bowler = newInning.bowlers[bowlerId];
 
     // Score calculations
-    let runsToAdd = runs;
-    if (ball.isWide || ball.isNoBall) {
-      runsToAdd += 1;
-      newInning.extras[ball.isWide ? 'wides' : 'noBalls'] += 1;
+    if (ball.isWide) {
+      newInning.extras.wides += 1;
+    } else if (ball.isNoBall) {
+      newInning.extras.noBalls += 1;
     } else {
       newInning.ballsInOver += 1;
       if (newInning.ballsInOver === 6) {
@@ -129,6 +167,104 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
 
     newInning.balls.push(ball);
     onUpdate(newInning);
+  };
+
+  const undoLastBall = () => {
+    if (currentInning.balls.length === 0) return;
+
+    const balls = [...currentInning.balls];
+    const undoneBall = balls.pop()!;
+
+    // Instead of complex reversal, we rebuild the inning stats from the remaining balls
+    const rebuiltInning: Inning = {
+      battingTeam: currentInning.battingTeam,
+      bowlingTeam: currentInning.bowlingTeam,
+      score: 0,
+      wickets: 0,
+      overs: 0,
+      ballsInOver: 0,
+      extras: { wides: 0, noBalls: 0, byes: 0, legByes: 0, penalty: 0 },
+      balls: [],
+      batsmen: {},
+      bowlers: {},
+      fallOfWickets: []
+    };
+
+    // Re-set the UI selectors to the state before the undone ball
+    setStrikerId(undoneBall.batsmanId);
+    setNonStrikerId(undoneBall.nonStrikerId);
+    setBowlerId(undoneBall.bowlerId);
+
+    // Re-apply each ball except the undone one to rebuild the state
+    // We can just call onUpdate with the shortened balls array if the match page handles rebuilding
+    // But for MVP simplicity, we'll let the user manually fix selectors if they need to
+    
+    const newInning = { ...currentInning, balls };
+    
+    // Quick recalculation for basic stats
+    let totalScore = 0;
+    let totalWickets = 0;
+    let totalOvers = 0;
+    let totalBallsInOver = 0;
+    const extras = { wides: 0, noBalls: 0, byes: 0, legByes: 0, penalty: 0 };
+    const batsmen: Record<string, any> = {};
+    const bowlers: Record<string, any> = {};
+    const fallOfWickets: any[] = [];
+
+    balls.forEach(b => {
+      let bRuns = b.runs;
+      if (b.isWide || b.isNoBall) {
+        bRuns += 1;
+        if (b.isWide) extras.wides += 1;
+        if (b.isNoBall) extras.noBalls += 1;
+      } else {
+        totalBallsInOver += 1;
+        if (totalBallsInOver === 6) {
+          totalOvers += 1;
+          totalBallsInOver = 0;
+        }
+      }
+      totalScore += bRuns;
+
+      if (!batsmen[b.batsmanId]) batsmen[b.batsmanId] = { id: b.batsmanId, name: b.batsmanId, runs: 0, balls: 0, fours: 0, sixes: 0, isOut: false };
+      if (!bowlers[b.bowlerId]) bowlers[b.bowlerId] = { id: b.bowlerId, name: b.bowlerId, overs: 0, balls: 0, maidens: 0, runsConceded: 0, wickets: 0, dots: 0 };
+
+      if (!b.isWide && !b.isByes && !b.isLegByes) {
+        batsmen[b.batsmanId].runs += b.runs;
+        if (b.runs === 4) batsmen[b.batsmanId].fours += 1;
+        if (b.runs === 6) batsmen[b.batsmanId].sixes += 1;
+      }
+      if (!b.isWide) batsmen[b.batsmanId].balls += 1;
+
+      if (!b.isByes && !b.isLegByes) bowlers[b.bowlerId].runsConceded += bRuns;
+      if (!b.isWide && !b.isNoBall) {
+        bowlers[b.bowlerId].balls += 1;
+        if (bowlers[b.bowlerId].balls === 6) {
+          bowlers[b.bowlerId].overs += 1;
+          bowlers[b.bowlerId].balls = 0;
+        }
+      }
+
+      if (b.isWicket) {
+        totalWickets += 1;
+        batsmen[b.batsmanId].isOut = true;
+        batsmen[b.batsmanId].dismissalType = b.wicketType;
+        if (b.wicketType !== 'run out') bowlers[b.bowlerId].wickets += 1;
+        fallOfWickets.push({ wicket: totalWickets, score: totalScore, overs: `${totalOvers}.${totalBallsInOver}` });
+      }
+    });
+
+    onUpdate({
+      ...newInning,
+      score: totalScore,
+      wickets: totalWickets,
+      overs: totalOvers,
+      ballsInOver: totalBallsInOver,
+      extras,
+      batsmen,
+      bowlers,
+      fallOfWickets
+    });
   };
 
   const handleWicket = () => {
@@ -243,17 +379,18 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
         </Dialog>
         <Button 
           variant="outline" 
-          onClick={() => alert("Undo feature coming soon...")}
-          className="h-14 text-lg font-bold"
+          onClick={undoLastBall}
+          className="h-14 text-lg font-bold gap-2"
+          disabled={currentInning.balls.length === 0}
         >
-          UNDO
+          <Undo2 className="w-5 h-5" /> UNDO
         </Button>
       </div>
 
       <div className="flex gap-2 overflow-x-auto py-2">
         {currentInning.balls.slice(-12).map((b, i) => (
           <div 
-            key={i} 
+            key={b.id} 
             className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border ${
               b.isWicket ? 'bg-red-500 text-white border-red-600' : 
               b.runs === 4 ? 'bg-blue-500 text-white border-blue-600' :

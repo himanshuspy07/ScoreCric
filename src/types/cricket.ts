@@ -40,6 +40,7 @@ export interface Ball {
   id: string;
   bowlerId: string;
   batsmanId: string;
+  nonStrikerId: string;
   runs: number;
   isWide: boolean;
   isNoBall: boolean;
@@ -48,6 +49,9 @@ export interface Ball {
   isWicket: boolean;
   wicketType?: DismissalType;
   fielderId?: string;
+  cumulativeScore: number;
+  overNumber: number;
+  ballNumber: number;
 }
 
 export interface Team {
