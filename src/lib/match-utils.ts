@@ -152,3 +152,62 @@ export const getComparativeWormData = (match: Match) => {
   }
   return data;
 };
+
+export const calculatePlayerOfTheMatch = (match: Match): string => {
+  const scores: Record<string, number> = {};
+
+  match.innings.forEach(inning => {
+    if (!inning) return;
+
+    // Batting scores contribution
+    Object.values(inning.batsmen).forEach(b => {
+      let points = b.runs;
+      points += b.fours * 2;
+      points += b.sixes * 4;
+      
+      // Strike rate impact for substantial innings
+      if (b.balls >= 10) {
+        const sr = (b.runs / b.balls) * 100;
+        if (sr > 180) points += 20;
+        else if (sr > 150) points += 10;
+      }
+      
+      // Milestones
+      if (b.runs >= 50) points += 25;
+      if (b.runs >= 100) points += 50;
+      
+      scores[b.name] = (scores[b.name] || 0) + points;
+    });
+
+    // Bowling scores contribution
+    Object.values(inning.bowlers).forEach(bw => {
+      let points = bw.wickets * 25;
+      
+      const totalBalls = bw.overs * 6 + bw.balls;
+      if (totalBalls >= 12) { // At least 2 overs bowled
+        const eco = (bw.runsConceded / (totalBalls / 6));
+        if (eco < 5) points += 25;
+        else if (eco < 7) points += 12;
+      }
+      
+      // Milestones
+      if (bw.wickets >= 3) points += 25;
+      if (bw.wickets >= 5) points += 50;
+      if (bw.maidens > 0) points += bw.maidens * 15;
+      
+      scores[bw.name] = (scores[bw.name] || 0) + points;
+    });
+  });
+
+  let winner = 'N/A';
+  let maxPoints = -1;
+
+  Object.entries(scores).forEach(([name, points]) => {
+    if (points > maxPoints) {
+      maxPoints = points;
+      winner = name;
+    }
+  });
+
+  return winner;
+};

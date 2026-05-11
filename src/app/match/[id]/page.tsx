@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useState, use } from 'react';
@@ -17,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { saveMatchToLocalStorage, useLocalMatch } from '@/lib/storage';
 import { Match, Inning, Ball } from '@/types/cricket';
-import { getRunRate, getRequiredRunRate, getWinProbability, getComparativeManhattanData, getComparativeWormData } from '@/lib/match-utils';
+import { getRunRate, getRequiredRunRate, getWinProbability, getComparativeManhattanData, getComparativeWormData, calculatePlayerOfTheMatch } from '@/lib/match-utils';
 import { ChevronLeft, Share2, BarChart3, LineChart, Trophy, Zap, Activity, Target, Download } from 'lucide-react';
 import ScoringInterface from '@/components/scoring/ScoringInterface';
 import MatchScorecard from '@/components/scorecard/MatchScorecard';
@@ -105,6 +106,10 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           updatedMatch.winner = 'Tie';
           setShowTieDialog(true);
         }
+        
+        // Calculate Player of the Match
+        updatedMatch.manOfTheMatch = calculatePlayerOfTheMatch(updatedMatch);
+        
         toast({ title: "Match Completed", description: updatedMatch.winner === 'Tie' ? "Match Tied!" : `${updatedMatch.winner} Won!` });
         setShowSummary(true);
       }
@@ -146,6 +151,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       parentMatchId: match.id,
       innings: [createInning(teamBattedSecond, teamBattedFirst), null],
       winner: undefined,
+      manOfTheMatch: undefined,
       createdAt: Date.now(),
       updatedAt: Date.now()
     };
