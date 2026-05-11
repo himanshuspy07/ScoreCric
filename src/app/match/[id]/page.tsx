@@ -14,7 +14,7 @@ import ScoringInterface from '@/components/scoring/ScoringInterface';
 import MatchScorecard from '@/components/scorecard/MatchScorecard';
 import { useToast } from "@/hooks/use-toast";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Line, LineChart as ReLineChart, ResponsiveContainer } from 'recharts';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Line, LineChart as ReLineChart } from 'recharts';
 
 export default function MatchPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -166,7 +166,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
         </div>
       )}
 
-      <main className="p-2">
+      <main className="max-w-5xl mx-auto p-2 sm:p-4">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-4 mb-4">
             <TabsTrigger value="score">Scoring</TabsTrigger>
@@ -213,58 +213,56 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           </TabsContent>
 
           <TabsContent value="stats">
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+              <Card className="flex flex-col">
+                <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center gap-2">
-                    <BarChart3 className="w-4 h-4 text-primary" /> Manhattan Chart (Runs per Over)
+                    <BarChart3 className="w-4 h-4 text-primary" /> Manhattan Chart
                   </CardTitle>
+                  <p className="text-xs text-muted-foreground">Runs scored per over</p>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-[200px] w-full">
-                    {currentInning.balls.length > 0 ? (
-                      <ChartContainer config={{ runs: { label: "Runs", color: "hsl(var(--primary))" } }}>
-                        <BarChart data={getManhattanData(currentInning)}>
-                          <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                          <XAxis dataKey="over" tickLine={false} axisLine={false} tickMargin={8} />
-                          <YAxis tickLine={false} axisLine={false} />
-                          <ChartTooltip content={<ChartTooltipContent />} />
-                          <Bar dataKey="runs" fill="var(--color-runs)" radius={4} />
-                        </BarChart>
-                      </ChartContainer>
-                    ) : (
-                      <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
-                        No data yet
-                      </div>
-                    )}
-                  </div>
+                <CardContent className="flex-1 min-h-[300px] sm:min-h-[350px]">
+                  {currentInning.balls.length > 0 ? (
+                    <ChartContainer config={{ runs: { label: "Runs", color: "hsl(var(--primary))" } }} className="h-full w-full">
+                      <BarChart data={getManhattanData(currentInning)}>
+                        <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                        <XAxis dataKey="over" tickLine={false} axisLine={false} tickMargin={8} />
+                        <YAxis tickLine={false} axisLine={false} />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Bar dataKey="runs" fill="var(--color-runs)" radius={4} />
+                      </BarChart>
+                    </ChartContainer>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-muted-foreground text-sm py-20">
+                      No data available yet
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader>
+              <Card className="flex flex-col">
+                <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center gap-2">
-                    <LineChart className="w-4 h-4 text-secondary" /> Worm Chart (Cumulative Score)
+                    <LineChart className="w-4 h-4 text-secondary" /> Worm Chart
                   </CardTitle>
+                  <p className="text-xs text-muted-foreground">Cumulative runs progression</p>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-[200px] w-full">
-                    {currentInning.balls.length > 0 ? (
-                      <ChartContainer config={{ score: { label: "Score", color: "hsl(var(--secondary))" } }}>
-                        <ReLineChart data={getWormData(currentInning)}>
-                          <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                          <XAxis dataKey="over" tickLine={false} axisLine={false} tickMargin={8} />
-                          <YAxis tickLine={false} axisLine={false} />
-                          <ChartTooltip content={<ChartTooltipContent />} />
-                          <Line type="monotone" dataKey="score" stroke="var(--color-score)" strokeWidth={2} dot={false} />
-                        </ReLineChart>
-                      </ChartContainer>
-                    ) : (
-                      <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
-                        No data yet
-                      </div>
-                    )}
-                  </div>
+                <CardContent className="flex-1 min-h-[300px] sm:min-h-[350px]">
+                  {currentInning.balls.length > 0 ? (
+                    <ChartContainer config={{ score: { label: "Score", color: "hsl(var(--secondary))" } }} className="h-full w-full">
+                      <ReLineChart data={getWormData(currentInning)}>
+                        <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                        <XAxis dataKey="over" tickLine={false} axisLine={false} tickMargin={8} />
+                        <YAxis tickLine={false} axisLine={false} />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Line type="monotone" dataKey="score" stroke="var(--color-score)" strokeWidth={2} dot={false} />
+                      </ReLineChart>
+                    </ChartContainer>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-muted-foreground text-sm py-20">
+                      No data available yet
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
