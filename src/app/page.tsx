@@ -101,20 +101,20 @@ export default function Home() {
                           </p>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 pr-10">
                         <ChevronRight className="w-6 h-6 text-muted-foreground" />
                       </div>
                     </CardContent>
                   </Card>
                 </Link>
                 
-                <div className="absolute top-4 right-12 z-10">
+                <div className="absolute top-1/2 -translate-y-1/2 right-4 z-10">
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button 
-                        variant="ghost" 
+                        variant="outline" 
                         size="icon" 
-                        className="text-destructive hover:bg-destructive/10"
+                        className="h-10 w-10 border-destructive/20 text-destructive bg-destructive/5 hover:bg-destructive hover:text-destructive-foreground transition-colors shadow-sm"
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -126,7 +126,7 @@ export default function Home() {
                     </AlertDialogTrigger>
                     <AlertDialogContent onClick={(e) => e.stopPropagation()}>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogTitle>Delete this match?</AlertDialogTitle>
                         <AlertDialogDescription>
                           This will permanently delete the match between {match.teamA.name} and {match.teamB.name}. This action cannot be undone.
                         </AlertDialogDescription>
