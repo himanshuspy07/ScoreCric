@@ -1,3 +1,16 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "cricket-ground",
+      "description": "Professional cricket ground with green grass",
+      "imageUrl": "https://picsum.photos/seed/cricket1/1200/800",
+      "imageHint": "cricket ground"
+    },
+    {
+      "id": "cricket-bat",
+      "description": "Cricket bat and ball on the pitch",
+      "imageUrl": "https://picsum.photos/seed/cricket2/600/400",
+      "imageHint": "cricket bat"
+    }
+  ]
 }
