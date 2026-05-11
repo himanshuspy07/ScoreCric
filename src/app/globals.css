@@ -61,9 +61,22 @@
   }
   body {
     @apply bg-background text-foreground font-body;
+    /* Prevent pull-to-refresh on PWAs */
+    overscroll-behavior-y: contain;
+    /* Prevent text selection during rapid tapping */
+    -webkit-tap-highlight-color: transparent;
   }
 }
 
 .pwa-footer {
   @apply fixed bottom-0 left-0 right-0 py-2 text-center text-[10px] text-muted-foreground bg-background/80 backdrop-blur-sm border-t z-50;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
