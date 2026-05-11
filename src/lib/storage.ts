@@ -1,53 +1,101 @@
 
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Match } from '@/types/cricket';
-import { doc, setDoc, deleteDoc, Firestore } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 
 /**
- * Sanitizes data for Firestore by removing undefined values.
- * Firestore does not support undefined, so we convert to a JSON string and back
- * to strip any keys with undefined values.
+ * Key used for localStorage
  */
-const sanitizeForFirestore = (data: any) => {
-  return JSON.parse(JSON.stringify(data));
+const STORAGE_KEY = 'scorecric_matches_v1';
+
+/**
+ * Core utility to get matches from localStorage
+ */
+export const getLocalMatches = (): Match[] => {
+  if (typeof window === 'undefined') return [];
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (!stored) return [];
+  try {
+    return JSON.parse(stored);
+  } catch (e) {
+    console.error('Failed to parse matches from local storage', e);
+    return [];
+  }
 };
 
 /**
- * Saves match data to Firestore.
- * This operation is optimistic and non-blocking.
+ * Saves or updates a match in localStorage.
+ * Dispatches a custom event so other components in the same tab can react.
  */
-export const saveMatchToFirestore = (db: Firestore, match: Match) => {
-  const matchRef = doc(db, 'matches', match.id);
-  const data = sanitizeForFirestore({ ...match, updatedAt: Date.now() });
-
-  // Note: We do NOT await here. Firestore handles background sync and optimistic UI.
-  setDoc(matchRef, data, { merge: true })
-    .catch(async (error) => {
-      const permissionError = new FirestorePermissionError({
-        path: matchRef.path,
-        operation: 'write',
-        requestResourceData: data,
-      });
-      errorEmitter.emit('permission-error', permissionError);
-    });
-};
-
-/**
- * Deletes a match from Firestore.
- */
-export const deleteMatchFromFirestore = (db: Firestore, id: string) => {
-  const matchRef = doc(db, 'matches', id);
+export const saveMatchToLocalStorage = (match: Match) => {
+  const matches = getLocalMatches();
+  const index = matches.findIndex(m => m.id === match.id);
+  const updatedMatch = { ...match, updatedAt: Date.now() };
   
-  // Non-blocking delete
-  deleteDoc(matchRef)
-    .catch(async (error) => {
-      const permissionError = new FirestorePermissionError({
-        path: matchRef.path,
-        operation: 'delete',
-      });
-      errorEmitter.emit('permission-error', permissionError);
-    });
+  if (index >= 0) {
+    matches[index] = updatedMatch;
+  } else {
+    matches.unshift(updatedMatch);
+  }
+  
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(matches));
+  window.dispatchEvent(new CustomEvent('match_update'));
 };
+
+/**
+ * Deletes a match from localStorage.
+ */
+export const deleteMatchFromLocalStorage = (id: string) => {
+  const matches = getLocalMatches();
+  const filtered = matches.filter(m => m.id !== id);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+  window.dispatchEvent(new CustomEvent('match_update'));
+};
+
+/**
+ * Hook to retrieve all matches from localStorage with real-time updates in-tab.
+ */
+export function useLocalMatches() {
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = () => {
+      setMatches(getLocalMatches());
+      setLoading(false);
+    };
+    
+    load();
+    window.addEventListener('match_update' as any, load);
+    return () => window.removeEventListener('match_update' as any, load);
+  }, []);
+
+  return { data: matches, loading };
+}
+
+/**
+ * Hook to retrieve a single match from localStorage by ID.
+ */
+export function useLocalMatch(id: string | null) {
+  const [match, setMatch] = useState<Match | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = () => {
+      if (!id) {
+        setMatch(null);
+      } else {
+        const matches = getLocalMatches();
+        setMatch(matches.find(m => m.id === id) || null);
+      }
+      setLoading(false);
+    };
+    
+    load();
+    window.addEventListener('match_update' as any, load);
+    return () => window.removeEventListener('match_update' as any, load);
+  }, [id]);
+
+  return { data: match, loading };
+}

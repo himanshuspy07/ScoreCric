@@ -15,29 +15,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { useCollection, useFirestore, useUser } from '@/firebase';
-import { collection, query, orderBy, limit } from 'firebase/firestore';
-import { deleteMatchFromFirestore } from '@/lib/storage';
+import { useUser } from '@/firebase';
+import { deleteMatchFromLocalStorage, useLocalMatches } from '@/lib/storage';
 import { Match } from '@/types/cricket';
-import { Trophy, Plus, History, Trash2, LayoutGrid, ChevronRight, LogIn, Activity } from 'lucide-react';
-import { useMemoFirebase } from '@/firebase/firestore/use-memo-firebase';
+import { Trophy, Plus, History, Trash2, LayoutGrid, ChevronRight, Activity } from 'lucide-react';
 
 export default function Home() {
-  const db = useFirestore();
   const { user, signInWithGoogle, loading: authLoading } = useUser();
   const [matchToDelete, setMatchToDelete] = useState<Match | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-  const matchesQuery = useMemoFirebase(() => {
-    if (!db) return null;
-    return query(collection(db, 'matches'), orderBy('updatedAt', 'desc'), limit(20));
-  }, [db]);
-
-  const { data: matches, loading: matchesLoading } = useCollection<Match>(matchesQuery);
+  const { data: matches, loading: matchesLoading } = useLocalMatches();
 
   const handleDeleteConfirm = () => {
-    if (matchToDelete && db) {
-      deleteMatchFromFirestore(db, matchToDelete.id);
+    if (matchToDelete) {
+      deleteMatchFromLocalStorage(matchToDelete.id);
       setMatchToDelete(null);
       setIsDeleteDialogOpen(false);
     }
@@ -59,7 +51,7 @@ export default function Home() {
           </div>
           <div className="relative z-10">
             <h2 className="text-3xl sm:text-5xl font-black mb-4 tracking-tighter">Live Cricket, Pro Results.</h2>
-            <p className="text-white/80 font-medium mb-8 max-w-lg mx-auto">Score matches in real-time, share live analytics, and manage your league across the internet.</p>
+            <p className="text-white/80 font-medium mb-8 max-w-lg mx-auto">Score matches instantly, analyze performance, and manage your local league with ease.</p>
             <Button onClick={() => signInWithGoogle()} size="lg" variant="secondary" className="rounded-full font-black px-8 h-12 shadow-xl hover:scale-105 transition-transform">
               Get Started Free
             </Button>
@@ -71,7 +63,7 @@ export default function Home() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5 text-foreground">
             <Activity className="w-5 h-5 text-primary" />
-            <h2 className="text-lg sm:text-xl font-black tracking-tight uppercase">Live & Recent</h2>
+            <h2 className="text-lg sm:text-xl font-black tracking-tight uppercase">Recent Matches</h2>
           </div>
           {user && (
             <Link href="/match/setup">
@@ -92,8 +84,8 @@ export default function Home() {
               <LayoutGrid className="w-10 h-10 sm:w-14 sm:h-14 text-muted-foreground/40" />
             </div>
             <div className="space-y-2 px-6">
-              <p className="text-lg sm:text-xl font-bold text-foreground/80">No active matches</p>
-              <p className="text-sm text-muted-foreground/60 max-w-xs mx-auto">Real-time match data will appear here once scoring begins.</p>
+              <p className="text-lg sm:text-xl font-bold text-foreground/80">No matches found</p>
+              <p className="text-sm text-muted-foreground/60 max-w-xs mx-auto">Matches stored in your browser will appear here once you begin scoring.</p>
             </div>
             {user && (
               <Link href="/match/setup">
@@ -172,7 +164,7 @@ export default function Home() {
           <AlertDialogHeader>
             <AlertDialogTitle className="text-xl font-black">Archive Match?</AlertDialogTitle>
             <AlertDialogDescription className="text-sm font-medium">
-              This match will be permanently removed from the cloud. Spectators will no longer be able to view this scorecard.
+              This match will be permanently removed from this browser. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2 sm:gap-0 mt-4">
@@ -189,8 +181,8 @@ export default function Home() {
 
       <footer className="pwa-footer bg-white/90 backdrop-blur-md border-t border-primary/5">
         <div className="flex items-center justify-center gap-2 font-black tracking-widest text-primary/40 text-[9px] uppercase">
-          <span className="bg-primary/10 text-primary px-2 py-0.5 rounded">SC LIVE</span>
-          <span>Sync v2.4 PRO</span>
+          <span className="bg-primary/10 text-primary px-2 py-0.5 rounded">LOCAL STORAGE</span>
+          <span>Fast Sync v3.0</span>
         </div>
       </footer>
     </div>

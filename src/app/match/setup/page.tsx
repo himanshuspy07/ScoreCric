@@ -8,16 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RadioGroup } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, Palette, Users, History, AlertCircle } from 'lucide-react';
-import { saveMatchToFirestore } from '@/lib/storage';
+import { Trophy, Palette, History, AlertCircle } from 'lucide-react';
+import { saveMatchToLocalStorage, useLocalMatches } from '@/lib/storage';
 import { Match, Inning } from '@/types/cricket';
-import { useFirestore, useUser, useCollection } from '@/firebase';
-import { collection, query, limit, orderBy } from 'firebase/firestore';
-import { useMemoFirebase } from '@/firebase/firestore/use-memo-firebase';
+import { useUser } from '@/firebase';
 
 const TEAM_COLORS = [
   { name: 'Forest Green', value: '#2C5A37' },
@@ -30,15 +27,10 @@ const TEAM_COLORS = [
 
 export default function MatchSetup() {
   const router = useRouter();
-  const db = useFirestore();
   const { user, signInWithGoogle } = useUser();
   const [step, setStep] = useState(1);
 
-  const pastMatchesQuery = useMemoFirebase(() => {
-    if (!db) return null;
-    return query(collection(db, 'matches'), orderBy('updatedAt', 'desc'), limit(10));
-  }, [db]);
-  const { data: pastMatches } = useCollection<Match>(pastMatchesQuery);
+  const { data: pastMatches } = useLocalMatches();
 
   const pastTeams = React.useMemo(() => {
     if (!pastMatches) return [];
@@ -70,13 +62,13 @@ export default function MatchSetup() {
       <div className="min-h-screen flex items-center justify-center p-6">
         <Card className="max-w-md w-full text-center p-8 border-2">
           <AlertCircle className="w-12 h-12 text-primary mx-auto mb-4" />
-          <h2 className="text-xl font-bold mb-2">Sign In Required</h2>
-          <p className="text-muted-foreground mb-6">You need to be signed in to host and score live matches across the internet.</p>
+          <h2 className="text-xl font-bold mb-2">Sign In Recommended</h2>
+          <p className="text-muted-foreground mb-6">Signing in allows you to manage your matches with your identity, even on local storage.</p>
           <Button onClick={() => signInWithGoogle()} className="w-full h-12 rounded-xl font-bold">
             Sign In with Google
           </Button>
           <Button variant="ghost" onClick={() => router.push('/')} className="w-full mt-2">
-            Back to Home
+            Continue Anyway
           </Button>
         </Card>
       </div>
@@ -138,8 +130,6 @@ export default function MatchSetup() {
   });
 
   const handleSubmit = () => {
-    if (!db || !user) return;
-
     const id = Math.random().toString(36).substr(2, 9);
     const battingTeam = matchInfo.tossWinner === 'teamA' 
       ? (matchInfo.tossChoice === 'bat' ? matchInfo.teamAName : matchInfo.teamBName)
@@ -161,10 +151,10 @@ export default function MatchSetup() {
       innings: [createInning(battingTeam, bowlingTeam), null],
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      ownerId: user.uid
+      ownerId: user?.uid || 'local-user'
     };
 
-    saveMatchToFirestore(db, newMatch);
+    saveMatchToLocalStorage(newMatch);
     router.push(`/match/${id}`);
   };
 

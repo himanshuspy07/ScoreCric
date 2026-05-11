@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { saveMatchToFirestore } from '@/lib/storage';
+import { saveMatchToLocalStorage, useLocalMatch } from '@/lib/storage';
 import { Match, Inning, Ball } from '@/types/cricket';
 import { getRunRate, getRequiredRunRate, getWinProbability, getComparativeManhattanData, getComparativeWormData } from '@/lib/match-utils';
 import { ChevronLeft, Share2, BarChart3, LineChart, Trophy, Zap, Activity } from 'lucide-react';
@@ -15,24 +15,16 @@ import MatchScorecard from '@/components/scorecard/MatchScorecard';
 import { useToast } from "@/hooks/use-toast";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from '@/components/ui/chart';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Line, LineChart as ReLineChart } from 'recharts';
-import { useDoc, useFirestore, useUser } from '@/firebase';
-import { doc } from 'firebase/firestore';
-import { useMemoFirebase } from '@/firebase/firestore/use-memo-firebase';
+import { useUser } from '@/firebase';
 
 export default function MatchPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const router = useRouter();
   const { toast } = useToast();
-  const db = useFirestore();
   const { user } = useUser();
   const [activeTab, setActiveTab] = useState('score');
 
-  const matchRef = useMemoFirebase(() => {
-    if (!db || !resolvedParams.id) return null;
-    return doc(db, 'matches', resolvedParams.id);
-  }, [db, resolvedParams.id]);
-
-  const { data: match, loading } = useDoc<Match>(matchRef);
+  const { data: match, loading } = useLocalMatch(resolvedParams.id);
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-[#F3FAF4]">
@@ -54,7 +46,8 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
   const brandingColor = battingTeamObj.color || '#2C5A37';
 
   const handleScoreUpdate = (updatedInning: Inning) => {
-    if (!db || user?.uid !== match.ownerId) return;
+    // Check ownership if user is signed in, otherwise allow local edits
+    if (user && user.uid !== match.ownerId) return;
 
     const updatedMatch: Match = {
       ...match,
@@ -103,7 +96,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       }
     }
 
-    saveMatchToFirestore(db, updatedMatch);
+    saveMatchToLocalStorage(updatedMatch);
   };
 
   const handleShare = async () => {
@@ -112,7 +105,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
 
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'ScoreCric Live Update', text: shareText, url: shareUrl });
+        await navigator.share({ title: 'ScoreCric Update', text: shareText, url: shareUrl });
       } catch (error: any) {
         if (error.name !== 'AbortError') {
           await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
@@ -265,17 +258,17 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
 
           <TabsContent value="score">
             {match.status !== 'completed' ? (
-              user?.uid === match.ownerId ? (
+              (!user || user?.uid === match.ownerId) ? (
                 <ScoringInterface match={match} onUpdate={handleScoreUpdate} />
               ) : (
                 <Card className="text-center py-20 bg-white/50 border-2 border-dashed">
                   <div className="bg-primary/10 p-6 rounded-full w-fit mx-auto mb-6">
                      <Activity className="w-10 h-10 text-primary" />
                   </div>
-                  <h3 className="text-xl font-black text-primary mb-2">Live Spectating</h3>
-                  <p className="text-muted-foreground font-medium mb-4">You are watching this match in real-time.</p>
+                  <h3 className="text-xl font-black text-primary mb-2">Spectating Mode</h3>
+                  <p className="text-muted-foreground font-medium mb-4">You are viewing this local match.</p>
                   <div className="flex flex-col items-center gap-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest bg-primary/10 px-3 py-1 rounded-full text-primary">Live Sync Enabled</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest bg-primary/10 px-3 py-1 rounded-full text-primary">Local Storage Sync</span>
                   </div>
                 </Card>
               )
@@ -285,7 +278,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                    <Trophy className="w-10 h-10 text-primary" />
                 </div>
                 <h3 className="text-2xl font-black text-primary mb-2">Victory!</h3>
-                <p className="text-muted-foreground font-medium mb-8">This professional match has concluded.</p>
+                <p className="text-muted-foreground font-medium mb-8">This match has concluded.</p>
                 <Button onClick={() => setActiveTab('card')} className="font-bold rounded-xl h-12 px-8">Final Scorecard</Button>
               </Card>
             )}
@@ -392,8 +385,8 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
 
       <footer className="pwa-footer bg-white/90 backdrop-blur-md">
         <div className="flex items-center justify-center gap-2 font-black tracking-tight text-primary/40 uppercase text-[8px]">
-          <span className="bg-primary text-white px-1 py-0.5 rounded">PRO</span>
-          <span>SCORECRIC LIVE SYSTEM</span>
+          <span className="bg-primary text-white px-1 py-0.5 rounded">FAST</span>
+          <span>SCORECRIC LOCAL SYSTEM</span>
         </div>
       </footer>
     </div>
