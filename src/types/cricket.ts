@@ -99,4 +99,6 @@ export interface Match {
   createdAt: number;
   updatedAt: number;
   ownerId: string;
+  isSuperOver?: boolean;
+  parentMatchId?: string;
 }

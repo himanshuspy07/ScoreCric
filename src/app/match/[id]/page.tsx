@@ -6,6 +6,16 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { saveMatchToLocalStorage, useLocalMatch } from '@/lib/storage';
 import { Match, Inning, Ball } from '@/types/cricket';
 import { getRunRate, getRequiredRunRate, getWinProbability, getComparativeManhattanData, getComparativeWormData } from '@/lib/match-utils';
@@ -23,6 +33,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
   const { toast } = useToast();
   const { user } = useUser();
   const [activeTab, setActiveTab] = useState('score');
+  const [showTieDialog, setShowTieDialog] = useState(false);
 
   const { data: match, loading } = useLocalMatch(resolvedParams.id);
 
@@ -46,7 +57,6 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
   const brandingColor = battingTeamObj.color || '#2C5A37';
 
   const handleScoreUpdate = (updatedInning: Inning) => {
-    // Check ownership if user is signed in, otherwise allow local edits
     if (user && user.uid !== match.ownerId) return;
 
     const updatedMatch: Match = {
@@ -91,12 +101,58 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           updatedMatch.winner = updatedInning.bowlingTeam;
         } else {
           updatedMatch.winner = 'Tie';
+          setShowTieDialog(true);
         }
         toast({ title: "Match Completed", description: updatedMatch.winner === 'Tie' ? "Match Tied!" : `${updatedMatch.winner} Won!` });
       }
     }
 
     saveMatchToLocalStorage(updatedMatch);
+  };
+
+  const handleStartSuperOver = () => {
+    if (!match) return;
+
+    const newId = `so-${match.id}-${Math.random().toString(36).substr(2, 5)}`;
+    
+    const createInning = (batting: string, bowling: string): Inning => ({
+      battingTeam: batting,
+      bowlingTeam: bowling,
+      score: 0,
+      wickets: 0,
+      overs: 0,
+      ballsInOver: 0,
+      extras: { wides: 0, noBalls: 0, byes: 0, legByes: 0, penalty: 0 },
+      balls: [],
+      batsmen: {},
+      bowlers: {},
+      fallOfWickets: []
+    });
+
+    // In a super over, the team that batted second usually bats first, or it's a toss.
+    // We'll flip the order from the last inning.
+    const teamBattedSecond = match.innings[1]!.battingTeam;
+    const teamBattedFirst = match.innings[0]!.battingTeam;
+
+    const superOverMatch: Match = {
+      ...match,
+      id: newId,
+      title: `SUPER OVER: ${match.title}`,
+      oversLimit: 1,
+      currentInning: 1,
+      status: 'live',
+      isSuperOver: true,
+      parentMatchId: match.id,
+      innings: [createInning(teamBattedSecond, teamBattedFirst), null],
+      winner: undefined,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+
+    saveMatchToLocalStorage(superOverMatch);
+    setShowTieDialog(false);
+    router.push(`/match/${newId}`);
+    toast({ title: "Super Over Initiated", description: "The ultimate showdown begins! 1 Over, all or nothing." });
   };
 
   const handleShare = async () => {
@@ -193,7 +249,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
             <ChevronLeft className="w-6 h-6" />
           </Button>
           <div className="text-center">
-            <h2 className="text-[10px] font-black opacity-60 uppercase tracking-[0.2em]">{match.title}</h2>
+            <h2 className="text-[10px] font-black opacity-60 uppercase tracking-[0.2em]">{match.isSuperOver ? "⚔️ SUPER OVER" : match.title}</h2>
             <p className="text-xs font-bold bg-black/10 px-3 py-0.5 rounded-full mt-1 uppercase tracking-tighter">{match.format} • {match.oversLimit} OVERS</p>
           </div>
           <Button variant="ghost" size="icon" className="hover:bg-white/10" onClick={handleShare}>
@@ -235,7 +291,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           </div>
         </div>
 
-        {match.currentInning === 2 && winProb !== null && (
+        {match.currentInning === 2 && winProb !== null && !match.isSuperOver && (
           <div className="mt-6 space-y-2 animate-in fade-in slide-in-from-top-2 duration-700">
             <div className="flex justify-between text-[10px] font-black uppercase tracking-tighter">
               <span className="flex items-center gap-1"><Zap className="w-3 h-3 text-amber-400" /> {currentInning.battingTeam} {Math.round(winProb)}%</span>
@@ -251,6 +307,15 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       {match.status === 'completed' && (
         <div className="bg-secondary p-3 text-center text-white font-black text-xs sm:text-sm tracking-tighter uppercase">
           {match.winner === 'Tie' ? "MATCH TIED" : `${match.winner} WON`}
+          {match.winner === 'Tie' && (
+             <Button 
+               variant="link" 
+               className="text-white ml-2 underline font-black text-xs p-0 h-auto"
+               onClick={() => setShowTieDialog(true)}
+             >
+               Start Super Over?
+             </Button>
+          )}
         </div>
       )}
 
@@ -287,7 +352,12 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                 </div>
                 <h3 className="text-2xl font-black text-primary mb-2">Victory!</h3>
                 <p className="text-muted-foreground font-medium mb-8">This match has concluded.</p>
-                <Button onClick={() => setActiveTab('card')} className="font-bold rounded-xl h-12 px-8">Final Scorecard</Button>
+                <div className="flex flex-wrap justify-center gap-4">
+                  <Button onClick={() => setActiveTab('card')} className="font-bold rounded-xl h-12 px-8">Final Scorecard</Button>
+                  {match.winner === 'Tie' && (
+                    <Button onClick={() => setShowTieDialog(true)} variant="secondary" className="font-bold rounded-xl h-12 px-8">Super Over</Button>
+                  )}
+                </div>
               </Card>
             )}
           </TabsContent>
@@ -321,6 +391,12 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: match.teamB.color }} />
                   </div>
                 </div>
+                {match.isSuperOver && (
+                  <div className="bg-primary/5 p-4 rounded-xl border border-primary/10 mt-4">
+                    <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">Super Over Context</p>
+                    <p className="text-xs font-medium text-muted-foreground">This is a tie-breaker over for match {match.parentMatchId?.slice(0, 8)}.</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -390,6 +466,31 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           </TabsContent>
         </Tabs>
       </main>
+
+      <AlertDialog open={showTieDialog} onOpenChange={setShowTieDialog}>
+        <AlertDialogContent className="w-[90%] rounded-[2rem] sm:w-full">
+          <AlertDialogHeader>
+            <div className="bg-amber-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+               <Zap className="w-8 h-8 text-amber-600 fill-amber-600" />
+            </div>
+            <AlertDialogTitle className="text-2xl font-black text-center">It&apos;s a Tie!</AlertDialogTitle>
+            <AlertDialogDescription className="text-center font-medium text-base">
+              The scores are dead level. Do you want to settle this with a <strong>Super Over</strong>?
+              <br/><br/>
+              Format: 1 Over per side. 2 Wickets limit.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-3 mt-6">
+            <AlertDialogCancel className="rounded-2xl border-2 font-bold h-12 flex-1">Finish as Tie</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleStartSuperOver} 
+              className="bg-primary text-white rounded-2xl font-black h-12 flex-1 shadow-lg shadow-primary/20"
+            >
+              Start Super Over
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <footer className="pwa-footer bg-white/90 backdrop-blur-md">
         <div className="flex items-center justify-center gap-2 font-black tracking-tight text-primary/40 uppercase text-[8px]">
