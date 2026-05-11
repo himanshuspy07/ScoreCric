@@ -10,10 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, Palette, History, AlertCircle, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Trophy, Palette, History, AlertCircle, ChevronRight, ChevronLeft, Sparkles, Loader2 } from 'lucide-react';
 import { saveMatchToLocalStorage, useLocalMatches } from '@/lib/storage';
 import { Match, Inning } from '@/types/cricket';
 import { useUser } from '@/firebase';
+import { generateTeamLogo } from '@/ai/flows/team-branding';
+import Image from 'next/image';
 
 const TEAM_COLORS = [
   { name: 'Forest Green', value: '#2C5A37' },
@@ -28,17 +30,18 @@ export default function MatchSetup() {
   const router = useRouter();
   const { user, signInWithGoogle } = useUser();
   const [step, setStep] = useState(1);
+  const [generatingLogo, setGeneratingLogo] = useState<'A' | 'B' | null>(null);
 
   const { data: pastMatches } = useLocalMatches();
 
   const pastTeams = React.useMemo(() => {
     if (!pastMatches) return [];
-    const teamsMap = new Map<string, string[]>();
+    const teamsMap = new Map<string, { players: string[], color: string, logoUrl?: string }>();
     pastMatches.forEach(m => {
-      teamsMap.set(m.teamA.name, m.teamA.players);
-      teamsMap.set(m.teamB.name, m.teamB.players);
+      teamsMap.set(m.teamA.name, { players: m.teamA.players, color: m.teamA.color || '', logoUrl: m.teamA.logoUrl });
+      teamsMap.set(m.teamB.name, { players: m.teamB.players, color: m.teamB.color || '', logoUrl: m.teamB.logoUrl });
     });
-    return Array.from(teamsMap.entries()).map(([name, players]) => ({ name, players }));
+    return Array.from(teamsMap.entries()).map(([name, data]) => ({ name, ...data }));
   }, [pastMatches]);
 
   const [matchInfo, setMatchInfo] = useState({
@@ -50,11 +53,36 @@ export default function MatchSetup() {
     teamBName: 'Team B',
     teamAColor: '#2C5A37',
     teamBColor: '#1E40AF',
+    teamALogo: '',
+    teamBLogo: '',
     teamAPlayers: Array.from({length: 11}, (_, i) => `A Player ${i+1}`),
     teamBPlayers: Array.from({length: 11}, (_, i) => `B Player ${i+1}`),
     tossWinner: 'teamA',
     tossChoice: 'bat',
   });
+
+  const handleLogoGeneration = async (team: 'A' | 'B') => {
+    setGeneratingLogo(team);
+    try {
+      const name = team === 'A' ? matchInfo.teamAName : matchInfo.teamBName;
+      const colorVal = team === 'A' ? matchInfo.teamAColor : matchInfo.teamBColor;
+      const colorObj = TEAM_COLORS.find(c => c.value === colorVal);
+      
+      const logoUrl = await generateTeamLogo({
+        teamName: name,
+        colorName: colorObj?.name || 'Green'
+      });
+      
+      setMatchInfo(prev => ({
+        ...prev,
+        [team === 'A' ? 'teamALogo' : 'teamBLogo']: logoUrl
+      }));
+    } catch (error) {
+      console.error("Logo generation failed", error);
+    } finally {
+      setGeneratingLogo(null);
+    }
+  };
 
   if (!user) {
     return (
@@ -143,8 +171,8 @@ export default function MatchSetup() {
       title: matchInfo.title || `${matchInfo.teamAName} vs ${matchInfo.teamBName}`,
       format: matchInfo.format as any,
       oversLimit: parseInt(matchInfo.overs),
-      teamA: { name: matchInfo.teamAName, players: matchInfo.teamAPlayers, color: matchInfo.teamAColor },
-      teamB: { name: matchInfo.teamBName, players: matchInfo.teamBPlayers, color: matchInfo.teamBColor },
+      teamA: { name: matchInfo.teamAName, players: matchInfo.teamAPlayers, color: matchInfo.teamAColor, logoUrl: matchInfo.teamALogo },
+      teamB: { name: matchInfo.teamBName, players: matchInfo.teamBPlayers, color: matchInfo.teamBColor, logoUrl: matchInfo.teamBLogo },
       tossWinner: matchInfo.tossWinner === 'teamA' ? matchInfo.teamAName : matchInfo.teamBName,
       tossChoice: matchInfo.tossChoice as any,
       status: 'live',
@@ -185,7 +213,7 @@ export default function MatchSetup() {
              <div>
                 <CardTitle className="text-2xl font-black text-primary">
                   {step === 1 && "Match Intelligence"}
-                  {step === 2 && "Branding & Teams"}
+                  {step === 2 && "Branding & AI Logos"}
                   {step === 3 && "Professional Squads"}
                   {step === 4 && "The Official Toss"}
                 </CardTitle>
@@ -234,6 +262,26 @@ export default function MatchSetup() {
                     <button key={color.value} onClick={() => setMatchInfo({...matchInfo, teamAColor: color.value})} className={`w-full aspect-square rounded-2xl border-4 transition-all ${matchInfo.teamAColor === color.value ? 'scale-110 ring-4 ring-primary ring-offset-4 shadow-xl' : 'hover:scale-105 opacity-80 border-transparent'}`} style={{ backgroundColor: color.value }} title={color.name} />
                   ))}
                 </div>
+                <div className="flex flex-col items-center gap-4 p-6 bg-muted/20 rounded-3xl border-2 border-dashed">
+                   {matchInfo.teamALogo ? (
+                     <div className="relative w-32 h-32 rounded-2xl overflow-hidden bg-white shadow-xl">
+                        <Image src={matchInfo.teamALogo} alt="Team A Logo" fill className="object-cover" />
+                     </div>
+                   ) : (
+                     <div className="w-32 h-32 rounded-2xl bg-muted flex items-center justify-center">
+                        <Palette className="w-8 h-8 text-muted-foreground" />
+                     </div>
+                   )}
+                   <Button 
+                     onClick={() => handleLogoGeneration('A')} 
+                     disabled={generatingLogo === 'A' || !matchInfo.teamAName}
+                     className="w-full h-12 rounded-xl font-black gap-2 shadow-lg"
+                     variant="secondary"
+                   >
+                     {generatingLogo === 'A' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                     AI Generate Logo
+                   </Button>
+                </div>
               </div>
               <div className="space-y-6">
                 <div className="space-y-2">
@@ -244,6 +292,26 @@ export default function MatchSetup() {
                   {TEAM_COLORS.map(color => (
                     <button key={color.value} onClick={() => setMatchInfo({...matchInfo, teamBColor: color.value})} className={`w-full aspect-square rounded-2xl border-4 transition-all ${matchInfo.teamBColor === color.value ? 'scale-110 ring-4 ring-primary ring-offset-4 shadow-xl' : 'hover:scale-105 opacity-80 border-transparent'}`} style={{ backgroundColor: color.value }} title={color.name} />
                   ))}
+                </div>
+                <div className="flex flex-col items-center gap-4 p-6 bg-muted/20 rounded-3xl border-2 border-dashed">
+                   {matchInfo.teamBLogo ? (
+                     <div className="relative w-32 h-32 rounded-2xl overflow-hidden bg-white shadow-xl">
+                        <Image src={matchInfo.teamBLogo} alt="Team B Logo" fill className="object-cover" />
+                     </div>
+                   ) : (
+                     <div className="w-32 h-32 rounded-2xl bg-muted flex items-center justify-center">
+                        <Palette className="w-8 h-8 text-muted-foreground" />
+                     </div>
+                   )}
+                   <Button 
+                     onClick={() => handleLogoGeneration('B')} 
+                     disabled={generatingLogo === 'B' || !matchInfo.teamBName}
+                     className="w-full h-12 rounded-xl font-black gap-2 shadow-lg"
+                     variant="secondary"
+                   >
+                     {generatingLogo === 'B' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                     AI Generate Logo
+                   </Button>
                 </div>
               </div>
             </div>

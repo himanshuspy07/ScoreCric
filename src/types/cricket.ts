@@ -58,6 +58,7 @@ export interface Team {
   name: string;
   players: string[];
   color?: string;
+  logoUrl?: string;
 }
 
 export interface Inning {

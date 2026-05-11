@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useState, use } from 'react';
@@ -19,13 +18,15 @@ import {
 import { saveMatchToLocalStorage, useLocalMatch } from '@/lib/storage';
 import { Match, Inning, Ball } from '@/types/cricket';
 import { getRunRate, getRequiredRunRate, getWinProbability, getComparativeManhattanData, getComparativeWormData } from '@/lib/match-utils';
-import { ChevronLeft, Share2, BarChart3, LineChart, Trophy, Zap, Activity, Target } from 'lucide-react';
+import { ChevronLeft, Share2, BarChart3, LineChart, Trophy, Zap, Activity, Target, Download } from 'lucide-react';
 import ScoringInterface from '@/components/scoring/ScoringInterface';
 import MatchScorecard from '@/components/scorecard/MatchScorecard';
 import { useToast } from "@/hooks/use-toast";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from '@/components/ui/chart';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Line, LineChart as ReLineChart } from 'recharts';
 import { useUser } from '@/firebase';
+import { MatchSummaryCard } from '@/components/share/MatchSummaryCard';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 export default function MatchPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -34,6 +35,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
   const { user } = useUser();
   const [activeTab, setActiveTab] = useState('score');
   const [showTieDialog, setShowTieDialog] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
 
   const { data: match, loading } = useLocalMatch(resolvedParams.id);
 
@@ -104,6 +106,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           setShowTieDialog(true);
         }
         toast({ title: "Match Completed", description: updatedMatch.winner === 'Tie' ? "Match Tied!" : `${updatedMatch.winner} Won!` });
+        setShowSummary(true);
       }
     }
 
@@ -129,8 +132,6 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       fallOfWickets: []
     });
 
-    // In a super over, the team that batted second usually bats first, or it's a toss.
-    // We'll flip the order from the last inning.
     const teamBattedSecond = match.innings[1]!.battingTeam;
     const teamBattedFirst = match.innings[0]!.battingTeam;
 
@@ -252,9 +253,16 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
             <h2 className="text-[10px] font-black opacity-60 uppercase tracking-[0.2em]">{match.isSuperOver ? "⚔️ SUPER OVER" : match.title}</h2>
             <p className="text-xs font-bold bg-black/10 px-3 py-0.5 rounded-full mt-1 uppercase tracking-tighter">{match.format} • {match.oversLimit} OVERS</p>
           </div>
-          <Button variant="ghost" size="icon" className="hover:bg-white/10" onClick={handleShare}>
-            <Share2 className="w-5 h-5" />
-          </Button>
+          <div className="flex gap-2">
+            {match.status === 'completed' && (
+              <Button variant="ghost" size="icon" className="hover:bg-white/10" onClick={() => setShowSummary(true)}>
+                <Download className="w-5 h-5" />
+              </Button>
+            )}
+            <Button variant="ghost" size="icon" className="hover:bg-white/10" onClick={handleShare}>
+              <Share2 className="w-5 h-5" />
+            </Button>
+          </div>
         </div>
 
         <div className="flex justify-between items-end">
@@ -353,7 +361,8 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                 <h3 className="text-2xl font-black text-primary mb-2">Victory!</h3>
                 <p className="text-muted-foreground font-medium mb-8">This match has concluded.</p>
                 <div className="flex flex-wrap justify-center gap-4">
-                  <Button onClick={() => setActiveTab('card')} className="font-bold rounded-xl h-12 px-8">Final Scorecard</Button>
+                  <Button onClick={() => setShowSummary(true)} className="font-bold rounded-xl h-12 px-8">Share Result Recap</Button>
+                  <Button onClick={() => setActiveTab('card')} variant="outline" className="font-bold rounded-xl h-12 px-8">Final Scorecard</Button>
                   {match.winner === 'Tie' && (
                     <Button onClick={() => setShowTieDialog(true)} variant="secondary" className="font-bold rounded-xl h-12 px-8">Super Over</Button>
                   )}
@@ -491,6 +500,17 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={showSummary} onOpenChange={setShowSummary}>
+        <DialogContent className="max-w-xl w-[95%] rounded-[2.5rem] max-h-[90dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-center text-xl font-black uppercase tracking-tighter">Match Summary Recap</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <MatchSummaryCard match={match} />
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <footer className="pwa-footer bg-white/90 backdrop-blur-md">
         <div className="flex items-center justify-center gap-2 font-black tracking-tight text-primary/40 uppercase text-[8px]">
