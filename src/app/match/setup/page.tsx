@@ -12,9 +12,18 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, Users, Layout, UserCog } from 'lucide-react';
+import { Trophy, Palette } from 'lucide-react';
 import { saveMatch } from '@/lib/storage';
 import { Match, Inning } from '@/types/cricket';
+
+const TEAM_COLORS = [
+  { name: 'Forest Green', value: '#2C5A37' },
+  { name: 'Royal Blue', value: '#1E40AF' },
+  { name: 'Amber Gold', value: '#B45309' },
+  { name: 'Crimson Red', value: '#B91C1C' },
+  { name: 'Midnight Purple', value: '#581C87' },
+  { name: 'Sleek Black', value: '#18181B' },
+];
 
 export default function MatchSetup() {
   const router = useRouter();
@@ -26,6 +35,8 @@ export default function MatchSetup() {
     playerCount: 11,
     teamAName: 'Team A',
     teamBName: 'Team B',
+    teamAColor: '#2C5A37',
+    teamBColor: '#1E40AF',
     teamAPlayers: Array.from({length: 11}, (_, i) => `A Player ${i+1}`),
     teamBPlayers: Array.from({length: 11}, (_, i) => `B Player ${i+1}`),
     tossWinner: 'teamA',
@@ -99,8 +110,8 @@ export default function MatchSetup() {
       title: matchInfo.title || `${matchInfo.teamAName} vs ${matchInfo.teamBName}`,
       format: matchInfo.format as any,
       oversLimit: parseInt(matchInfo.overs),
-      teamA: { name: matchInfo.teamAName, players: matchInfo.teamAPlayers },
-      teamB: { name: matchInfo.teamBName, players: matchInfo.teamBPlayers },
+      teamA: { name: matchInfo.teamAName, players: matchInfo.teamAPlayers, color: matchInfo.teamAColor },
+      teamB: { name: matchInfo.teamBName, players: matchInfo.teamBPlayers, color: matchInfo.teamBColor },
       tossWinner: matchInfo.tossWinner === 'teamA' ? matchInfo.teamAName : matchInfo.teamBName,
       tossChoice: matchInfo.tossChoice as any,
       status: 'live',
@@ -118,16 +129,16 @@ export default function MatchSetup() {
     <div className="max-w-2xl mx-auto p-4 pb-20 pt-8 space-y-6">
       <div className="flex items-center gap-3 mb-6">
         <Trophy className="w-8 h-8 text-primary" />
-        <h1 className="text-3xl font-bold font-headline tracking-tight">New Match Setup</h1>
+        <h1 className="text-3xl font-bold font-headline tracking-tight text-primary">Match Setup</h1>
       </div>
 
-      <Card className="border-2">
+      <Card className="border-2 shadow-lg">
         <CardHeader className="bg-primary/5">
-          <CardTitle>
+          <CardTitle className="text-primary">
             {step === 1 && "Match Details"}
-            {step === 2 && "Team Information"}
-            {step === 3 && "Squad Setup"}
-            {step === 4 && "Toss Details"}
+            {step === 2 && "Teams & Branding"}
+            {step === 3 && "Squad List"}
+            {step === 4 && "The Toss"}
           </CardTitle>
           <CardDescription>Step {step} of 4</CardDescription>
         </CardHeader>
@@ -135,10 +146,10 @@ export default function MatchSetup() {
           {step === 1 && (
             <div className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="title">Match Title (Optional)</Label>
+                <Label htmlFor="title">Match Name</Label>
                 <Input 
                   id="title" 
-                  placeholder="e.g. Friendly Match" 
+                  placeholder="e.g. Weekend Cup Final" 
                   value={matchInfo.title} 
                   onChange={e => setMatchInfo({...matchInfo, title: e.target.value})}
                 />
@@ -154,7 +165,6 @@ export default function MatchSetup() {
                     <SelectContent>
                       <SelectItem value="T20">T20 (20 Overs)</SelectItem>
                       <SelectItem value="ODI">ODI (50 Overs)</SelectItem>
-                      <SelectItem value="Test">Test</SelectItem>
                       <SelectItem value="Custom">Custom</SelectItem>
                     </SelectContent>
                   </Select>
@@ -164,68 +174,100 @@ export default function MatchSetup() {
                   <Input 
                     type="number" 
                     value={matchInfo.overs} 
-                    disabled={matchInfo.format === 'T20' || matchInfo.format === 'ODI'}
+                    disabled={matchInfo.format !== 'Custom'}
                     onChange={e => setMatchInfo({...matchInfo, overs: e.target.value})}
                   />
-                  {(matchInfo.format === 'T20' || matchInfo.format === 'ODI') && (
-                    <p className="text-[10px] text-muted-foreground italic">Locked for {matchInfo.format}</p>
-                  )}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label>Players per team</Label>
+                <Label>Players Per Side</Label>
                 <div className="flex items-center gap-3">
                   <Input 
                     type="number" 
                     min={1}
                     max={22}
                     value={matchInfo.playerCount} 
-                    onChange={e => handlePlayerCountChange(parseInt(e.target.value) || 1)}
+                    onChange={e => handlePlayerCountChange(parseInt(e.target.value) || 11)}
                     className="w-24"
                   />
-                  <p className="text-xs text-muted-foreground font-medium">Standard is 11 players</p>
+                  <p className="text-xs text-muted-foreground font-medium">Standard format is 11 players</p>
                 </div>
               </div>
             </div>
           )}
 
           {step === 2 && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Team A Name</Label>
+            <div className="space-y-8">
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <Label className="text-base font-black">TEAM A</Label>
+                  <Palette className="w-4 h-4 text-muted-foreground" />
+                </div>
                 <Input 
+                  placeholder="Team A Name"
                   value={matchInfo.teamAName} 
                   onChange={e => setMatchInfo({...matchInfo, teamAName: e.target.value})}
+                  className="font-bold h-12"
                 />
+                <div className="grid grid-cols-6 gap-2">
+                  {TEAM_COLORS.map(color => (
+                    <button
+                      key={color.value}
+                      onClick={() => setMatchInfo({...matchInfo, teamAColor: color.value})}
+                      className={`w-full aspect-square rounded-full border-2 transition-transform ${matchInfo.teamAColor === color.value ? 'scale-110 ring-2 ring-primary ring-offset-2' : 'hover:scale-105 opacity-80'}`}
+                      style={{ backgroundColor: color.value }}
+                      title={color.name}
+                    />
+                  ))}
+                </div>
               </div>
+
               <Separator />
-              <div className="space-y-2">
-                <Label>Team B Name</Label>
+
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <Label className="text-base font-black">TEAM B</Label>
+                  <Palette className="w-4 h-4 text-muted-foreground" />
+                </div>
                 <Input 
+                  placeholder="Team B Name"
                   value={matchInfo.teamBName} 
                   onChange={e => setMatchInfo({...matchInfo, teamBName: e.target.value})}
+                  className="font-bold h-12"
                 />
+                <div className="grid grid-cols-6 gap-2">
+                  {TEAM_COLORS.map(color => (
+                    <button
+                      key={color.value}
+                      onClick={() => setMatchInfo({...matchInfo, teamBColor: color.value})}
+                      className={`w-full aspect-square rounded-full border-2 transition-transform ${matchInfo.teamBColor === color.value ? 'scale-110 ring-2 ring-primary ring-offset-2' : 'hover:scale-105 opacity-80'}`}
+                      style={{ backgroundColor: color.value }}
+                      title={color.name}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           )}
 
           {step === 3 && (
             <Tabs defaultValue="teamA" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="teamA" className="font-bold">{matchInfo.teamAName}</TabsTrigger>
-                <TabsTrigger value="teamB" className="font-bold">{matchInfo.teamBName}</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-2 mb-4 bg-muted p-1 h-12 rounded-xl">
+                <TabsTrigger value="teamA" className="font-bold data-[state=active]:bg-white">{matchInfo.teamAName}</TabsTrigger>
+                <TabsTrigger value="teamB" className="font-bold data-[state=active]:bg-white">{matchInfo.teamBName}</TabsTrigger>
               </TabsList>
               <TabsContent value="teamA">
                 <ScrollArea className="h-[400px] pr-4">
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {matchInfo.teamAPlayers.map((name, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-muted-foreground w-6">{i + 1}.</span>
+                      <div key={i} className="flex items-center gap-3">
+                        <span className="text-[10px] font-black text-muted-foreground w-6 text-right">{i + 1}</span>
                         <Input 
                           value={name} 
                           onChange={(e) => handlePlayerNameChange('A', i, e.target.value)}
-                          placeholder={`Player ${i + 1} Name`}
+                          placeholder={`Player Name`}
+                          className="h-9"
                         />
                       </div>
                     ))}
@@ -234,14 +276,15 @@ export default function MatchSetup() {
               </TabsContent>
               <TabsContent value="teamB">
                 <ScrollArea className="h-[400px] pr-4">
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {matchInfo.teamBPlayers.map((name, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-muted-foreground w-6">{i + 1}.</span>
+                      <div key={i} className="flex items-center gap-3">
+                        <span className="text-[10px] font-black text-muted-foreground w-6 text-right">{i + 1}</span>
                         <Input 
                           value={name} 
                           onChange={(e) => handlePlayerNameChange('B', i, e.target.value)}
-                          placeholder={`Player ${i + 1} Name`}
+                          placeholder={`Player Name`}
+                          className="h-9"
                         />
                       </div>
                     ))}
@@ -252,31 +295,51 @@ export default function MatchSetup() {
           )}
 
           {step === 4 && (
-            <div className="space-y-6">
-              <div className="space-y-3">
-                <Label className="text-lg font-bold">Who won the toss?</Label>
-                <RadioGroup value={matchInfo.tossWinner} onValueChange={v => setMatchInfo({...matchInfo, tossWinner: v})}>
-                  <div className="flex items-center space-x-2 p-3 border-2 rounded-xl hover:bg-muted cursor-pointer transition-colors">
-                    <RadioGroupItem value="teamA" id="toss-a" />
-                    <Label htmlFor="toss-a" className="flex-1 cursor-pointer font-bold">{matchInfo.teamAName}</Label>
+            <div className="space-y-8">
+              <div className="space-y-4">
+                <Label className="text-lg font-black block text-center">Toss Winner</Label>
+                <RadioGroup value={matchInfo.tossWinner} onValueChange={v => setMatchInfo({...matchInfo, tossWinner: v})} className="grid grid-cols-2 gap-4">
+                  <div 
+                    onClick={() => setMatchInfo({...matchInfo, tossWinner: 'teamA'})}
+                    className={`flex flex-col items-center gap-3 p-4 border-2 rounded-2xl cursor-pointer transition-all ${matchInfo.tossWinner === 'teamA' ? 'border-primary bg-primary/5' : 'hover:border-primary/20'}`}
+                  >
+                    <div className="w-4 h-4 rounded-full border-2 border-primary flex items-center justify-center">
+                      {matchInfo.tossWinner === 'teamA' && <div className="w-2 h-2 rounded-full bg-primary" />}
+                    </div>
+                    <span className="font-black text-sm uppercase">{matchInfo.teamAName}</span>
                   </div>
-                  <div className="flex items-center space-x-2 p-3 border-2 rounded-xl hover:bg-muted cursor-pointer transition-colors">
-                    <RadioGroupItem value="teamB" id="toss-b" />
-                    <Label htmlFor="toss-b" className="flex-1 cursor-pointer font-bold">{matchInfo.teamBName}</Label>
+                  <div 
+                    onClick={() => setMatchInfo({...matchInfo, tossWinner: 'teamB'})}
+                    className={`flex flex-col items-center gap-3 p-4 border-2 rounded-2xl cursor-pointer transition-all ${matchInfo.tossWinner === 'teamB' ? 'border-primary bg-primary/5' : 'hover:border-primary/20'}`}
+                  >
+                    <div className="w-4 h-4 rounded-full border-2 border-primary flex items-center justify-center">
+                      {matchInfo.tossWinner === 'teamB' && <div className="w-2 h-2 rounded-full bg-primary" />}
+                    </div>
+                    <span className="font-black text-sm uppercase">{matchInfo.teamBName}</span>
                   </div>
                 </RadioGroup>
               </div>
 
-              <div className="space-y-3">
-                <Label className="text-lg font-bold">Toss winner elected to?</Label>
-                <RadioGroup value={matchInfo.tossChoice} onValueChange={v => setMatchInfo({...matchInfo, tossChoice: v})}>
-                  <div className="flex items-center space-x-2 p-3 border-2 rounded-xl hover:bg-muted cursor-pointer transition-colors">
-                    <RadioGroupItem value="bat" id="choice-bat" />
-                    <Label htmlFor="choice-bat" className="flex-1 cursor-pointer font-bold">Bat</Label>
+              <div className="space-y-4">
+                <Label className="text-lg font-black block text-center">Elected To</Label>
+                <RadioGroup value={matchInfo.tossChoice} onValueChange={v => setMatchInfo({...matchInfo, tossChoice: v})} className="grid grid-cols-2 gap-4">
+                  <div 
+                    onClick={() => setMatchInfo({...matchInfo, tossChoice: 'bat'})}
+                    className={`flex flex-col items-center gap-3 p-4 border-2 rounded-2xl cursor-pointer transition-all ${matchInfo.tossChoice === 'bat' ? 'border-primary bg-primary/5' : 'hover:border-primary/20'}`}
+                  >
+                    <div className="w-4 h-4 rounded-full border-2 border-primary flex items-center justify-center">
+                      {matchInfo.tossChoice === 'bat' && <div className="w-2 h-2 rounded-full bg-primary" />}
+                    </div>
+                    <span className="font-black text-sm uppercase">BAT</span>
                   </div>
-                  <div className="flex items-center space-x-2 p-3 border-2 rounded-xl hover:bg-muted cursor-pointer transition-colors">
-                    <RadioGroupItem value="bowl" id="choice-bowl" />
-                    <Label htmlFor="choice-bowl" className="flex-1 cursor-pointer font-bold">Bowl</Label>
+                  <div 
+                    onClick={() => setMatchInfo({...matchInfo, tossChoice: 'bowl'})}
+                    className={`flex flex-col items-center gap-3 p-4 border-2 rounded-2xl cursor-pointer transition-all ${matchInfo.tossChoice === 'bowl' ? 'border-primary bg-primary/5' : 'hover:border-primary/20'}`}
+                  >
+                    <div className="w-4 h-4 rounded-full border-2 border-primary flex items-center justify-center">
+                      {matchInfo.tossChoice === 'bowl' && <div className="w-2 h-2 rounded-full bg-primary" />}
+                    </div>
+                    <span className="font-black text-sm uppercase">BOWL</span>
                   </div>
                 </RadioGroup>
               </div>
@@ -287,21 +350,20 @@ export default function MatchSetup() {
 
       <div className="flex justify-between gap-4">
         {step > 1 ? (
-          <Button variant="outline" onClick={handleBack} className="flex-1 py-6 rounded-xl font-bold border-2">Back</Button>
+          <Button variant="outline" onClick={handleBack} className="flex-1 h-14 rounded-2xl font-bold border-2">Back</Button>
         ) : (
-          <Button variant="outline" onClick={() => router.push('/')} className="flex-1 py-6 rounded-xl font-bold border-2">Cancel</Button>
+          <Button variant="outline" onClick={() => router.push('/')} className="flex-1 h-14 rounded-2xl font-bold border-2">Cancel</Button>
         )}
         {step < 4 ? (
-          <Button onClick={handleNext} className="flex-1 py-6 rounded-xl font-bold shadow-lg">Next</Button>
+          <Button onClick={handleNext} className="flex-1 h-14 rounded-2xl font-bold shadow-lg">Next Step</Button>
         ) : (
-          <Button onClick={handleSubmit} className="flex-1 py-6 bg-secondary hover:bg-secondary/90 text-white rounded-xl font-black shadow-lg">Start Match</Button>
+          <Button onClick={handleSubmit} className="flex-1 h-14 bg-secondary hover:bg-secondary/90 text-white rounded-2xl font-black shadow-lg">Start Match</Button>
         )}
       </div>
 
-      <footer className="pwa-footer">
-        Made by <span className="font-bold text-primary">Himanshu Yadav</span>
+      <footer className="pwa-footer bg-white/80 backdrop-blur">
+        Professional Cricket Scoring by <span className="font-bold text-primary">Himanshu Yadav</span>
       </footer>
     </div>
   );
 }
-

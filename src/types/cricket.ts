@@ -57,6 +57,7 @@ export interface Ball {
 export interface Team {
   name: string;
   players: string[];
+  color?: string;
 }
 
 export interface Inning {
