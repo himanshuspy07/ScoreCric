@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useState } from 'react';
@@ -174,7 +173,7 @@ export default function Home() {
 
       <footer className="pwa-footer bg-white/90 backdrop-blur-md border-t border-primary/5">
         <div className="flex items-center justify-center gap-2 font-black tracking-widest text-primary/40 text-[9px] uppercase">
-          <span className="bg-primary/10 text-primary px-2 py-0.5 rounded">LOCAL STORAGE</span>
+          <span className="bg-primary/10 text-primary px-2 py-0.5 rounded">ScoreCric</span>
           <span>Fast Sync v3.0</span>
         </div>
       </footer>
