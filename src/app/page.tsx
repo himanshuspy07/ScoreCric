@@ -1,10 +1,10 @@
 
 "use client"
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,27 +15,29 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { getAllMatches, deleteMatch } from '@/lib/storage';
+import { useCollection, useFirestore, useUser } from '@/firebase';
+import { collection, query, orderBy, limit } from 'firebase/firestore';
+import { deleteMatchFromFirestore } from '@/lib/storage';
 import { Match } from '@/types/cricket';
-import { Trophy, Plus, History, Trash2, LayoutGrid, ChevronRight } from 'lucide-react';
+import { Trophy, Plus, History, Trash2, LayoutGrid, ChevronRight, LogIn } from 'lucide-react';
+import { useMemoFirebase } from '@/firebase/firestore/use-memo-firebase';
 
 export default function Home() {
-  const [matches, setMatches] = useState<Match[]>([]);
+  const db = useFirestore();
+  const { user, signInWithGoogle } = useUser();
   const [matchToDelete, setMatchToDelete] = useState<Match | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-  useEffect(() => {
-    refreshMatches();
-  }, []);
+  const matchesQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(collection(db, 'matches'), orderBy('updatedAt', 'desc'), limit(20));
+  }, [db]);
 
-  const refreshMatches = () => {
-    setMatches(getAllMatches().sort((a, b) => b.updatedAt - a.updatedAt));
-  };
+  const { data: matches, loading } = useCollection<Match>(matchesQuery);
 
   const handleDeleteConfirm = () => {
-    if (matchToDelete) {
-      deleteMatch(matchToDelete.id);
-      refreshMatches();
+    if (matchToDelete && db) {
+      deleteMatchFromFirestore(db, matchToDelete.id);
       setMatchToDelete(null);
       setIsDeleteDialogOpen(false);
     }
@@ -57,30 +59,43 @@ export default function Home() {
           </div>
           <div className="space-y-0.5">
             <h1 className="text-3xl sm:text-4xl font-extrabold font-headline tracking-tight text-primary">ScoreCric</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground font-medium">Professional Match Scoring</p>
+            <p className="text-xs sm:text-sm text-muted-foreground font-medium">Professional Live Scoring</p>
           </div>
         </div>
-        <Link href="/match/setup" className="w-full sm:w-auto">
-          <Button size="lg" className="w-full sm:rounded-full gap-2 shadow-xl bg-secondary hover:bg-secondary/90 text-white h-12 sm:h-11">
-            <Plus className="w-5 h-5" /> New Match
-          </Button>
-        </Link>
+        
+        <div className="flex gap-3 w-full sm:w-auto">
+          {!user ? (
+            <Button variant="outline" onClick={() => signInWithGoogle()} className="flex-1 sm:flex-none gap-2 rounded-full font-bold">
+              <LogIn className="w-4 h-4" /> Sign In
+            </Button>
+          ) : (
+             <Link href="/match/setup" className="flex-1 sm:flex-none">
+              <Button size="lg" className="w-full sm:rounded-full gap-2 shadow-xl bg-secondary hover:bg-secondary/90 text-white h-12 sm:h-11">
+                <Plus className="w-5 h-5" /> New Match
+              </Button>
+            </Link>
+          )}
+        </div>
       </header>
 
       <section className="space-y-6">
         <div className="flex items-center gap-2.5 text-muted-foreground/80">
           <History className="w-5 h-5" />
-          <h2 className="text-lg sm:text-xl font-bold tracking-tight">Match History</h2>
+          <h2 className="text-lg sm:text-xl font-bold tracking-tight">Live & Past Matches</h2>
         </div>
 
-        {matches.length === 0 ? (
+        {loading ? (
+          <div className="grid gap-4">
+            {[1, 2, 3].map(i => <div key={i} className="h-24 w-full bg-muted animate-pulse rounded-xl" />)}
+          </div>
+        ) : !matches || matches.length === 0 ? (
           <Card className="border-dashed border-2 py-16 sm:py-24 text-center flex flex-col items-center gap-6 bg-transparent">
             <div className="bg-muted/50 p-6 rounded-full">
               <LayoutGrid className="w-10 h-10 sm:w-14 sm:h-14 text-muted-foreground/40" />
             </div>
             <div className="space-y-2 px-6">
               <p className="text-lg sm:text-xl font-bold text-foreground/80">No matches found</p>
-              <p className="text-sm text-muted-foreground/60 max-w-xs mx-auto">Your cricket match history will appear here. Start your first game!</p>
+              <p className="text-sm text-muted-foreground/60 max-w-xs mx-auto">Real-time match data will appear here once scoring begins.</p>
             </div>
             <Link href="/match/setup">
               <Button variant="secondary" className="px-8 shadow-lg">Start Scoring</Button>
@@ -108,7 +123,7 @@ export default function Home() {
                           <span className="text-[11px] text-muted-foreground font-medium">{new Date(match.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                           {match.status === 'completed' && <span className="text-secondary font-black text-[10px] uppercase tracking-tighter bg-secondary/10 px-2 py-0.5 rounded">Finished</span>}
                         </div>
-                        {match.status === 'live' && (
+                        {match.innings[match.currentInning - 1] && (
                           <div className="flex items-baseline gap-2 mt-1">
                             <p className="text-xl sm:text-2xl font-black text-primary">
                               {match.innings[match.currentInning - 1]?.score}/{match.innings[match.currentInning - 1]?.wickets}
@@ -131,16 +146,18 @@ export default function Home() {
                   </Card>
                 </Link>
                 
-                <div className="absolute top-1/2 -translate-y-1/2 right-3 sm:right-4 z-10">
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    className="h-9 w-9 sm:h-10 sm:w-10 border-destructive/50 text-destructive bg-white/50 hover:bg-destructive hover:text-white transition-all shadow-md active:scale-90"
-                    onClick={(e) => openDeleteDialog(e, match)}
-                  >
-                    <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </Button>
-                </div>
+                {user?.uid === match.ownerId && (
+                  <div className="absolute top-1/2 -translate-y-1/2 right-3 sm:right-4 z-10">
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-9 w-9 sm:h-10 sm:w-10 border-destructive/50 text-destructive bg-white/50 hover:bg-destructive hover:text-white transition-all shadow-md active:scale-90"
+                      onClick={(e) => openDeleteDialog(e, match)}
+                    >
+                      <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -152,7 +169,7 @@ export default function Home() {
           <AlertDialogHeader>
             <AlertDialogTitle className="text-xl font-bold">Delete Match?</AlertDialogTitle>
             <AlertDialogDescription className="text-sm">
-              This will permanently delete the match between <strong>{matchToDelete?.teamA.name}</strong> and <strong>{matchToDelete?.teamB.name}</strong>. This action cannot be undone.
+              This will permanently delete the match. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2 sm:gap-0 mt-4">
@@ -170,7 +187,7 @@ export default function Home() {
       <footer className="pwa-footer bg-white/90 backdrop-blur-md border-t border-primary/10">
         <div className="flex items-center justify-center gap-1.5 font-bold tracking-tight text-primary/60">
           <span className="bg-primary text-white text-[8px] px-1 py-0.5 rounded">SC</span>
-          <span>SCORECRIC</span>
+          <span>SCORECRIC LIVE</span>
         </div>
       </footer>
     </div>

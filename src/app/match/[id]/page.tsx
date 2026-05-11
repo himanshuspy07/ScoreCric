@@ -1,50 +1,61 @@
 
 "use client"
 
-import React, { useState, useEffect, use } from 'react';
+import React, { useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Progress } from '@/components/ui/progress';
-import { getMatchById, saveMatch } from '@/lib/storage';
+import { saveMatchToFirestore } from '@/lib/storage';
 import { Match, Inning, Ball } from '@/types/cricket';
-import { getRunRate, getRequiredRunRate, getManhattanData, getWormData, getWinProbability, getComparativeManhattanData, getComparativeWormData } from '@/lib/match-utils';
-import { ChevronLeft, Share2, BarChart3, LineChart, Info, Trophy, Zap, Activity, Target } from 'lucide-react';
+import { getRunRate, getRequiredRunRate, getWinProbability, getComparativeManhattanData, getComparativeWormData } from '@/lib/match-utils';
+import { ChevronLeft, Share2, BarChart3, LineChart, Trophy, Zap, Activity } from 'lucide-react';
 import ScoringInterface from '@/components/scoring/ScoringInterface';
 import MatchScorecard from '@/components/scorecard/MatchScorecard';
 import { useToast } from "@/hooks/use-toast";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from '@/components/ui/chart';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Line, LineChart as ReLineChart } from 'recharts';
+import { useDoc, useFirestore, useUser } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import { useMemoFirebase } from '@/firebase/firestore/use-memo-firebase';
 
 export default function MatchPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const router = useRouter();
   const { toast } = useToast();
-  const [match, setMatch] = useState<Match | null>(null);
+  const db = useFirestore();
+  const { user } = useUser();
   const [activeTab, setActiveTab] = useState('score');
 
-  useEffect(() => {
-    const loaded = getMatchById(resolvedParams.id);
-    if (loaded) {
-      setMatch(loaded);
-    } else {
-      router.push('/');
-    }
-  }, [resolvedParams.id, router]);
+  const matchRef = useMemoFirebase(() => {
+    if (!db || !resolvedParams.id) return null;
+    return doc(db, 'matches', resolvedParams.id);
+  }, [db, resolvedParams.id]);
 
-  if (!match) return null;
+  const { data: match, loading } = useDoc<Match>(matchRef);
+
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-[#F3FAF4]">
+      <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+  
+  if (!match) return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
+      <h1 className="text-2xl font-black text-primary mb-4">Match Not Found</h1>
+      <Button onClick={() => router.push('/')}>Go Back Home</Button>
+    </div>
+  );
 
   const currentInning = match.innings[match.currentInning - 1] as Inning;
   const winProb = getWinProbability(match);
 
-  // Dynamic branding color
   const battingTeamObj = currentInning.battingTeam === match.teamA.name ? match.teamA : match.teamB;
-  const bowlingTeamObj = currentInning.battingTeam === match.teamA.name ? match.teamB : match.teamA;
   const brandingColor = battingTeamObj.color || '#2C5A37';
-  const bowlBrandingColor = bowlingTeamObj.color || '#1E40AF';
 
   const handleScoreUpdate = (updatedInning: Inning) => {
+    if (!db || user?.uid !== match.ownerId) return;
+
     const updatedMatch: Match = {
       ...match,
       innings: match.currentInning === 1 
@@ -92,8 +103,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       }
     }
 
-    setMatch(updatedMatch);
-    saveMatch(updatedMatch);
+    saveMatchToFirestore(db, updatedMatch);
   };
 
   const handleShare = async () => {
@@ -102,16 +112,16 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
 
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'ScoreCric Match Update', text: shareText, url: shareUrl });
+        await navigator.share({ title: 'ScoreCric Live Update', text: shareText, url: shareUrl });
       } catch (error: any) {
         if (error.name !== 'AbortError') {
           await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
-          toast({ title: "Copied", description: "Match details copied to clipboard." });
+          toast({ title: "Copied", description: "Match link copied to clipboard." });
         }
       }
     } else {
       await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
-      toast({ title: "Copied", description: "Match details copied to clipboard." });
+      toast({ title: "Copied", description: "Match link copied to clipboard." });
     }
   };
 
@@ -126,7 +136,6 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       });
     });
 
-    // Show most recent events first
     allEvents.reverse();
 
     if (allEvents.length === 0) {
@@ -143,12 +152,9 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       <div className="space-y-4 px-2">
         {allEvents.map((ev, i) => (
           <div key={ev.ball.id} className="relative flex gap-4">
-            {/* Timeline track */}
             {i !== allEvents.length - 1 && (
               <div className="absolute left-5 top-10 bottom-0 w-0.5 bg-muted-foreground/10" />
             )}
-            
-            {/* Event Marker */}
             <div className={`z-10 flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-black text-xs border-4 border-[#F3FAF4] shadow-md ${
               ev.ball.isWicket ? 'bg-destructive text-white' : 
               ev.ball.runs === 4 ? 'bg-blue-600 text-white' : 
@@ -156,8 +162,6 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
             }`}>
               {ev.ball.isWicket ? 'W' : ev.ball.runs}
             </div>
-
-            {/* Event Content */}
             <Card className="flex-1 shadow-sm border-2 overflow-hidden hover:border-primary/20 transition-colors">
               <div className="p-3 flex justify-between items-center">
                 <div className="space-y-0.5">
@@ -167,7 +171,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                    </div>
                    <p className="text-sm font-black leading-tight">
                      {ev.ball.isWicket 
-                       ? `${ev.ball.batsmanId} dismissed by ${ev.ball.bowlerId}`
+                       ? `${ev.ball.batsmanId} dismissed`
                        : `${ev.ball.batsmanId} hits a ${ev.ball.runs}!`
                      }
                    </p>
@@ -261,7 +265,20 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
 
           <TabsContent value="score">
             {match.status !== 'completed' ? (
-              <ScoringInterface match={match} onUpdate={handleScoreUpdate} />
+              user?.uid === match.ownerId ? (
+                <ScoringInterface match={match} onUpdate={handleScoreUpdate} />
+              ) : (
+                <Card className="text-center py-20 bg-white/50 border-2 border-dashed">
+                  <div className="bg-primary/10 p-6 rounded-full w-fit mx-auto mb-6">
+                     <Activity className="w-10 h-10 text-primary" />
+                  </div>
+                  <h3 className="text-xl font-black text-primary mb-2">Live Spectating</h3>
+                  <p className="text-muted-foreground font-medium mb-4">You are watching this match in real-time.</p>
+                  <div className="flex flex-col items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest bg-primary/10 px-3 py-1 rounded-full text-primary">Live Sync Enabled</span>
+                  </div>
+                </Card>
+              )
             ) : (
               <Card className="text-center py-20 bg-white/50 border-2 border-dashed">
                 <div className="bg-primary/10 p-6 rounded-full w-fit mx-auto mb-6">
@@ -376,7 +393,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       <footer className="pwa-footer bg-white/90 backdrop-blur-md">
         <div className="flex items-center justify-center gap-2 font-black tracking-tight text-primary/40 uppercase text-[8px]">
           <span className="bg-primary text-white px-1 py-0.5 rounded">PRO</span>
-          <span>SCORECRIC SYSTEM</span>
+          <span>SCORECRIC LIVE SYSTEM</span>
         </div>
       </footer>
     </div>

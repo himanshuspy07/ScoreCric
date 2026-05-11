@@ -1,33 +1,34 @@
 
+'use client';
+
 import { Match } from '@/types/cricket';
+import { doc, setDoc, deleteDoc, Firestore } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
-const STORAGE_KEY = 'scorecric_matches';
+export const saveMatchToFirestore = (db: Firestore, match: Match) => {
+  const matchRef = doc(db, 'matches', match.id);
+  const data = { ...match, updatedAt: Date.now() };
 
-export const saveMatch = (match: Match) => {
-  if (typeof window === 'undefined') return;
-  const matches = getAllMatches();
-  const index = matches.findIndex(m => m.id === match.id);
-  if (index >= 0) {
-    matches[index] = { ...match, updatedAt: Date.now() };
-  } else {
-    matches.push({ ...match, createdAt: Date.now(), updatedAt: Date.now() });
-  }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(matches));
+  setDoc(matchRef, data, { merge: true })
+    .catch(async (error) => {
+      const permissionError = new FirestorePermissionError({
+        path: matchRef.path,
+        operation: 'write',
+        requestResourceData: data,
+      });
+      errorEmitter.emit('permission-error', permissionError);
+    });
 };
 
-export const getAllMatches = (): Match[] => {
-  if (typeof window === 'undefined') return [];
-  const data = localStorage.getItem(STORAGE_KEY);
-  return data ? JSON.parse(data) : [];
-};
-
-export const getMatchById = (id: string): Match | undefined => {
-  const matches = getAllMatches();
-  return matches.find(m => m.id === id);
-};
-
-export const deleteMatch = (id: string) => {
-  const matches = getAllMatches();
-  const filtered = matches.filter(m => m.id !== id);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+export const deleteMatchFromFirestore = (db: Firestore, id: string) => {
+  const matchRef = doc(db, 'matches', id);
+  deleteDoc(matchRef)
+    .catch(async (error) => {
+      const permissionError = new FirestorePermissionError({
+        path: matchRef.path,
+        operation: 'delete',
+      });
+      errorEmitter.emit('permission-error', permissionError);
+    });
 };

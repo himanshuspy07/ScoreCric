@@ -1,0 +1,45 @@
+
+{
+  "entities": {
+    "Match": {
+      "title": "Match",
+      "description": "A professional cricket match with real-time scoring data",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "format": { "type": "string", "enum": ["T20", "ODI", "Test", "Custom"] },
+        "oversLimit": { "type": "number" },
+        "teamA": { "$ref": "#/backend/entities/Team" },
+        "teamB": { "$ref": "#/backend/entities/Team" },
+        "tossWinner": { "type": "string" },
+        "tossChoice": { "type": "string", "enum": ["bat", "bowl"] },
+        "status": { "type": "string", "enum": ["upcoming", "live", "completed"] },
+        "currentInning": { "type": "number" },
+        "innings": { "type": "array" },
+        "winner": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" },
+        "ownerId": { "type": "string", "description": "The UID of the user who created the match" }
+      }
+    },
+    "Team": {
+      "title": "Team",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "players": { "type": "array", "items": { "type": "string" } },
+        "color": { "type": "string" }
+      }
+    }
+  },
+  "auth": {
+    "providers": ["google.com"]
+  },
+  "firestore": {
+    "/matches/{matchId}": {
+      "schema": "Match",
+      "description": "The primary collection for match data"
+    }
+  }
+}
