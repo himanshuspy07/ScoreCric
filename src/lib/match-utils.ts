@@ -1,5 +1,5 @@
 
-import { Inning, Ball, Match, Tournament } from '@/types/cricket';
+import { Inning, Ball, Match, Tournament, Fixture } from '@/types/cricket';
 
 export const calculateOvers = (overs: number, balls: number) => {
   const totalBalls = (overs * 6) + balls;
@@ -182,7 +182,7 @@ export const calculateTournamentStandings = (matches: Match[], tournamentTeams: 
 
     // NRR Calculations
     standings[inn1.battingTeam].runsFor += inn1.score;
-    standings[inn1.battingTeam].ballsFor += (m.oversLimit * 6); // Standard NRR uses full overs if all out
+    standings[inn1.battingTeam].ballsFor += (m.oversLimit * 6);
     standings[inn1.bowlingTeam].runsAgainst += inn1.score;
     standings[inn1.bowlingTeam].ballsAgainst += (m.oversLimit * 6);
 
@@ -244,4 +244,41 @@ export const calculatePlayerOfTheMatch = (match: Match): string => {
     }
   });
   return winner;
+};
+
+export const generateTournamentFixtures = (teams: string[], matchesPerTeam: number): Fixture[] => {
+  const fixtures: Fixture[] = [];
+  const n = teams.length;
+  if (n < 2) return [];
+
+  const teamList = [...teams];
+  if (n % 2 !== 0) teamList.push('BYE'); // Pad for round robin
+
+  const totalTeams = teamList.length;
+  const rounds = totalTeams - 1;
+
+  for (let r = 0; r < matchesPerTeam; r++) {
+    const roundOffset = r * rounds;
+    for (let round = 0; round < rounds; round++) {
+      for (let i = 0; i < totalTeams / 2; i++) {
+        const teamA = teamList[i];
+        const teamB = teamList[totalTeams - 1 - i];
+
+        if (teamA !== 'BYE' && teamB !== 'BYE') {
+          fixtures.push({
+            id: Math.random().toString(36).substr(2, 9),
+            teamA,
+            teamB,
+            status: 'pending'
+          });
+        }
+      }
+      // Rotate teams except the first one
+      teamList.splice(1, 0, teamList.pop()!);
+    }
+  }
+
+  // If we have more fixtures than matchesPerTeam requested (due to rounding/rotations), we could trim, 
+  // but round robin naturally generates sets. We'll return the full set.
+  return fixtures;
 };

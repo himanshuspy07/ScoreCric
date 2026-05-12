@@ -105,6 +105,20 @@ export interface Match {
   tournamentId?: string;
 }
 
+export interface Fixture {
+  id: string;
+  teamA: string;
+  teamB: string;
+  matchId?: string;
+  status: 'pending' | 'completed';
+}
+
+export interface TournamentSettings {
+  overs: number;
+  playersPerTeam: number;
+  matchesPerTeam: number;
+}
+
 export interface Tournament {
   id: string;
   name: string;
@@ -113,4 +127,6 @@ export interface Tournament {
   updatedAt: number;
   matchIds: string[];
   teams: string[];
+  settings: TournamentSettings;
+  fixtures: Fixture[];
 }
