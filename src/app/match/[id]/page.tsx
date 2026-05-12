@@ -19,9 +19,10 @@ import {
 import { saveMatchToLocalStorage, useLocalMatch } from '@/lib/storage';
 import { Match, Inning, Ball } from '@/types/cricket';
 import { getRunRate, getRequiredRunRate, getWinProbability, getComparativeManhattanData, getComparativeWormData, calculatePlayerOfTheMatch } from '@/lib/match-utils';
-import { ChevronLeft, Share2, BarChart3, LineChart, Trophy, Zap, Activity, Target, Download } from 'lucide-react';
+import { ChevronLeft, Share2, BarChart3, LineChart, Trophy, Zap, Activity, Target, Download, Users } from 'lucide-react';
 import ScoringInterface from '@/components/scoring/ScoringInterface';
 import MatchScorecard from '@/components/scorecard/MatchScorecard';
+import PartnershipView from '@/components/scorecard/PartnershipView';
 import { useToast } from "@/hooks/use-toast";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from '@/components/ui/chart';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Line, LineChart as ReLineChart } from 'recharts';
@@ -70,7 +71,6 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       updatedAt: Date.now()
     };
     
-    // Dynamic All Out detection: All out when (Team Size - 1) wickets fall
     const currentBattingTeam = updatedInning.battingTeam === match.teamA.name ? match.teamA : match.teamB;
     const maxWickets = currentBattingTeam.players.length - 1;
     
@@ -113,9 +113,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           setShowTieDialog(true);
         }
         
-        // Calculate Player of the Match
         updatedMatch.manOfTheMatch = calculatePlayerOfTheMatch(updatedMatch);
-        
         const endReason = allOut ? "All Out!" : (oversFinished ? "Overs Finished!" : "Target Reached!");
         toast({ title: "Match Completed", description: updatedMatch.winner === 'Tie' ? "Match Tied!" : `${endReason} ${updatedMatch.winner} Won!` });
         setShowSummary(true);
@@ -125,131 +123,20 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
     saveMatchToLocalStorage(updatedMatch);
   };
 
-  const handleStartSuperOver = () => {
-    if (!match) return;
-
-    const newId = `so-${match.id}-${Math.random().toString(36).substr(2, 5)}`;
-    
-    const createInning = (batting: string, bowling: string): Inning => ({
-      battingTeam: batting,
-      bowlingTeam: bowling,
-      score: 0,
-      wickets: 0,
-      overs: 0,
-      ballsInOver: 0,
-      extras: { wides: 0, noBalls: 0, byes: 0, legByes: 0, penalty: 0 },
-      balls: [],
-      batsmen: {},
-      bowlers: {},
-      fallOfWickets: []
-    });
-
-    const teamBattedSecond = match.innings[1]!.battingTeam;
-    const teamBattedFirst = match.innings[0]!.battingTeam;
-
-    const superOverMatch: Match = {
-      ...match,
-      id: newId,
-      title: `SUPER OVER: ${match.title}`,
-      oversLimit: 1,
-      currentInning: 1,
-      status: 'live',
-      isSuperOver: true,
-      parentMatchId: match.id,
-      innings: [createInning(teamBattedSecond, teamBattedFirst), null],
-      winner: undefined,
-      manOfTheMatch: undefined,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    };
-
-    saveMatchToLocalStorage(superOverMatch);
-    setShowTieDialog(false);
-    router.push(`/match/${newId}`);
-    toast({ title: "Super Over Initiated", description: "The ultimate showdown begins! 1 Over, all or nothing." });
-  };
-
   const handleShare = async () => {
     const shareText = `${match.teamA.name} vs ${match.teamB.name}\nScore: ${currentInning.score}/${currentInning.wickets} in ${currentInning.overs}.${currentInning.ballsInOver} overs`;
     const shareUrl = window.location.href;
-
     if (navigator.share) {
       try {
         await navigator.share({ title: 'ScoreCric Update', text: shareText, url: shareUrl });
       } catch (error: any) {
-        if (error.name !== 'AbortError') {
-          await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
-          toast({ title: "Copied", description: "Match link copied to clipboard." });
-        }
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+        toast({ title: "Copied", description: "Match link copied to clipboard." });
       }
     } else {
       await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
       toast({ title: "Copied", description: "Match link copied to clipboard." });
     }
-  };
-
-  const renderTimeline = () => {
-    const allEvents: { ball: Ball; inningIdx: number; team: string }[] = [];
-    match.innings.forEach((inn, idx) => {
-      if (!inn) return;
-      inn.balls.forEach(b => {
-        if (b.isWicket || b.runs >= 4) {
-          allEvents.push({ ball: b, inningIdx: idx + 1, team: inn.battingTeam });
-        }
-      });
-    });
-
-    allEvents.reverse();
-
-    if (allEvents.length === 0) {
-      return (
-        <div className="flex flex-col items-center justify-center py-20 text-muted-foreground bg-white/50 rounded-2xl border-2 border-dashed">
-          <Activity className="w-12 h-12 mb-4 opacity-20" />
-          <p className="font-bold text-sm">No major events yet</p>
-          <p className="text-[10px] uppercase tracking-widest mt-1">Boundaries and wickets appear here</p>
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-4 px-2">
-        {allEvents.map((ev, i) => (
-          <div key={ev.ball.id} className="relative flex gap-4">
-            {i !== allEvents.length - 1 && (
-              <div className="absolute left-5 top-10 bottom-0 w-0.5 bg-muted-foreground/10" />
-            )}
-            <div className={`z-10 flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-black text-xs border-4 border-[#F3FAF4] shadow-md ${
-              ev.ball.isWicket ? 'bg-destructive text-white' : 
-              ev.ball.runs === 4 ? 'bg-blue-600 text-white' : 
-              'bg-green-600 text-white'
-            }`}>
-              {ev.ball.isWicket ? 'W' : ev.ball.runs}
-            </div>
-            <Card className="flex-1 shadow-sm border-2 overflow-hidden hover:border-primary/20 transition-colors">
-              <div className="p-3 flex justify-between items-center">
-                <div className="space-y-0.5">
-                   <div className="flex items-center gap-2">
-                      <span className="text-[9px] font-black uppercase tracking-tighter bg-muted px-1.5 py-0.5 rounded text-muted-foreground">Inning {ev.inningIdx}</span>
-                      <span className="text-[10px] font-bold text-muted-foreground">Over {ev.ball.overNumber}.{ev.ball.ballNumber}</span>
-                   </div>
-                   <p className="text-sm font-black leading-tight">
-                     {ev.ball.isWicket 
-                       ? `${ev.ball.batsmanId} dismissed`
-                       : `${ev.ball.batsmanId} hits a ${ev.ball.runs}!`
-                     }
-                   </p>
-                   <p className="text-[10px] font-bold text-muted-foreground/60 uppercase">{ev.team}</p>
-                </div>
-                <div className="text-right">
-                   <p className="text-xs font-black text-primary">{ev.ball.cumulativeScore}/{ev.ball.isWicket ? '?' : ''}</p>
-                   <p className="text-[9px] font-bold text-muted-foreground uppercase opacity-40">Score</p>
-                </div>
-              </div>
-            </Card>
-          </div>
-        ))}
-      </div>
-    );
   };
 
   return (
@@ -325,28 +212,14 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
         )}
       </header>
 
-      {match.status === 'completed' && (
-        <div className="bg-secondary p-3 text-center text-white font-black text-xs sm:text-sm tracking-tighter uppercase">
-          {match.winner === 'Tie' ? "MATCH TIED" : `${match.winner} WON`}
-          {match.winner === 'Tie' && (
-             <Button 
-               variant="link" 
-               className="text-white ml-2 underline font-black text-xs p-0 h-auto"
-               onClick={() => setShowTieDialog(true)}
-             >
-               Start Super Over?
-             </Button>
-          )}
-        </div>
-      )}
-
       <main className="max-w-4xl mx-auto w-full px-4 pt-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5 mb-6 bg-white/50 border shadow-sm p-1 rounded-2xl h-12 overflow-x-auto overflow-y-hidden scrollbar-hide">
+          <TabsList className="grid w-full grid-cols-6 mb-6 bg-white/50 border shadow-sm p-1 rounded-2xl h-12 overflow-x-auto overflow-y-hidden scrollbar-hide">
             <TabsTrigger value="score" className="rounded-xl font-bold text-[9px] uppercase">Score</TabsTrigger>
             <TabsTrigger value="card" className="rounded-xl font-bold text-[9px] uppercase">Card</TabsTrigger>
-            <TabsTrigger value="timeline" className="rounded-xl font-bold text-[9px] uppercase">Story</TabsTrigger>
+            <TabsTrigger value="partners" className="rounded-xl font-bold text-[9px] uppercase">Pairs</TabsTrigger>
             <TabsTrigger value="stats" className="rounded-xl font-bold text-[9px] uppercase">Stats</TabsTrigger>
+            <TabsTrigger value="timeline" className="rounded-xl font-bold text-[9px] uppercase">Story</TabsTrigger>
             <TabsTrigger value="info" className="rounded-xl font-bold text-[9px] uppercase">Info</TabsTrigger>
           </TabsList>
 
@@ -360,10 +233,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                      <Activity className="w-10 h-10 text-primary" />
                   </div>
                   <h3 className="text-xl font-black text-primary mb-2">Spectating Mode</h3>
-                  <p className="text-muted-foreground font-medium mb-4">You are viewing this local match.</p>
-                  <div className="flex flex-col items-center gap-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest bg-primary/10 px-3 py-1 rounded-full text-primary">Local Storage Sync</span>
-                  </div>
+                  <p className="text-muted-foreground font-medium mb-4">You are viewing this match locally.</p>
                 </Card>
               )
             ) : (
@@ -372,14 +242,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                    <Trophy className="w-10 h-10 text-primary" />
                 </div>
                 <h3 className="text-2xl font-black text-primary mb-2">Victory!</h3>
-                <p className="text-muted-foreground font-medium mb-8">This match has concluded.</p>
-                <div className="flex flex-wrap justify-center gap-4">
-                  <Button onClick={() => setShowSummary(true)} className="font-bold rounded-xl h-12 px-8">Share Result Recap</Button>
-                  <Button onClick={() => setActiveTab('card')} variant="outline" className="font-bold rounded-xl h-12 px-8">Final Scorecard</Button>
-                  {match.winner === 'Tie' && (
-                    <Button onClick={() => setShowTieDialog(true)} variant="secondary" className="font-bold rounded-xl h-12 px-8">Super Over</Button>
-                  )}
-                </div>
+                <Button onClick={() => setShowSummary(true)} className="font-bold rounded-xl h-12 px-8">Share Result Recap</Button>
               </Card>
             )}
           </TabsContent>
@@ -388,39 +251,11 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
             <MatchScorecard match={match} />
           </TabsContent>
 
-          <TabsContent value="timeline">
-            {renderTimeline()}
-          </TabsContent>
-
-          <TabsContent value="info">
-            <Card className="border-2 shadow-sm overflow-hidden rounded-2xl">
-              <CardHeader className="bg-muted/50 py-4">
-                <CardTitle className="text-xs font-black flex items-center gap-2 uppercase tracking-widest">Match Intelligence</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6 space-y-4">
-                <div className="flex justify-between items-center pb-3 border-b border-muted">
-                  <span className="text-xs font-bold text-muted-foreground">Toss Status</span>
-                  <span className="text-xs font-black">{match.tossWinner} elected to {match.tossChoice}</span>
-                </div>
-                <div className="flex justify-between items-center pb-3 border-b border-muted">
-                  <span className="text-xs font-bold text-muted-foreground">Match Date</span>
-                  <span className="text-xs font-black">{new Date(match.createdAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-muted-foreground">Team Branding</span>
-                  <div className="flex gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: match.teamA.color }} />
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: match.teamB.color }} />
-                  </div>
-                </div>
-                {match.isSuperOver && (
-                  <div className="bg-primary/5 p-4 rounded-xl border border-primary/10 mt-4">
-                    <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">Super Over Context</p>
-                    <p className="text-xs font-medium text-muted-foreground">This is a tie-breaker over for match {match.parentMatchId?.slice(0, 8)}.</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+          <TabsContent value="partners">
+            <div className="space-y-6">
+              <PartnershipView inning={match.innings[0]!} />
+              {match.innings[1] && <PartnershipView inning={match.innings[1]} />}
+            </div>
           </TabsContent>
 
           <TabsContent value="stats">
@@ -428,109 +263,79 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
               <Card className="border-2 shadow-sm rounded-2xl overflow-hidden">
                 <CardHeader className="bg-muted/30">
                   <CardTitle className="text-sm font-black flex items-center gap-2"><BarChart3 className="w-4 h-4" /> Manhattan</CardTitle>
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase">Runs per over comparison</p>
                 </CardHeader>
                 <CardContent className="pt-6 h-[300px]">
-                  {match.innings[0]?.balls.length ? (
-                    <ChartContainer 
-                      config={{ 
-                        team1: { label: match.innings[0].battingTeam, color: match.innings[0].battingTeam === match.teamA.name ? match.teamA.color : match.teamB.color },
-                        team2: { label: match.innings[1]?.battingTeam || "TBD", color: match.innings[1]?.battingTeam === match.teamA.name ? match.teamA.color : match.teamB.color }
-                      }} 
-                      className="h-full w-full"
-                    >
-                      <BarChart data={getComparativeManhattanData(match)}>
-                        <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.1} />
-                        <XAxis dataKey="over" tickLine={false} axisLine={false} tickMargin={8} />
-                        <YAxis tickLine={false} axisLine={false} />
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                        <ChartLegend content={<ChartLegendContent />} />
-                        <Bar dataKey="team1" fill="var(--color-team1)" radius={2} />
-                        {match.currentInning === 2 && <Bar dataKey="team2" fill="var(--color-team2)" radius={2} />}
-                      </BarChart>
-                    </ChartContainer>
-                  ) : (
-                    <div className="h-full flex items-center justify-center text-muted-foreground text-xs font-bold">No data captured</div>
-                  )}
+                  <ChartContainer config={{ team1: { label: match.teamA.name, color: match.teamA.color }, team2: { label: match.teamB.name, color: match.teamB.color } }} className="h-full w-full">
+                    <BarChart data={getComparativeManhattanData(match)}>
+                      <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.1} />
+                      <XAxis dataKey="over" tickLine={false} axisLine={false} />
+                      <YAxis tickLine={false} axisLine={false} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Bar dataKey="team1" fill="var(--color-team1)" radius={2} />
+                      {match.currentInning === 2 && <Bar dataKey="team2" fill="var(--color-team2)" radius={2} />}
+                    </BarChart>
+                  </ChartContainer>
                 </CardContent>
               </Card>
 
               <Card className="border-2 shadow-sm rounded-2xl overflow-hidden">
                 <CardHeader className="bg-muted/30">
                   <CardTitle className="text-sm font-black flex items-center gap-2"><LineChart className="w-4 h-4" /> Worm</CardTitle>
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase">Cumulative run progression</p>
                 </CardHeader>
                 <CardContent className="pt-6 h-[300px]">
-                  {match.innings[0]?.balls.length ? (
-                    <ChartContainer 
-                      config={{ 
-                        team1: { label: match.innings[0].battingTeam, color: match.innings[0].battingTeam === match.teamA.name ? match.teamA.color : match.teamB.color },
-                        team2: { label: match.innings[1]?.battingTeam || "TBD", color: match.innings[1]?.battingTeam === match.teamA.name ? match.teamA.color : match.teamB.color }
-                      }} 
-                      className="h-full w-full"
-                    >
-                      <ReLineChart data={getComparativeWormData(match)}>
-                        <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.1} />
-                        <XAxis dataKey="over" tickLine={false} axisLine={false} tickMargin={8} />
-                        <YAxis tickLine={false} axisLine={false} />
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                        <ChartLegend content={<ChartLegendContent />} />
-                        <Line type="monotone" dataKey="team1" stroke="var(--color-team1)" strokeWidth={3} dot={false} />
-                        {match.currentInning === 2 && <Line type="monotone" dataKey="team2" stroke="var(--color-team2)" strokeWidth={3} dot={false} />}
-                      </ReLineChart>
-                    </ChartContainer>
-                  ) : (
-                    <div className="h-full flex items-center justify-center text-muted-foreground text-xs font-bold">No data captured</div>
-                  )}
+                  <ChartContainer config={{ team1: { label: match.teamA.name, color: match.teamA.color }, team2: { label: match.teamB.name, color: match.teamB.color } }} className="h-full w-full">
+                    <ReLineChart data={getComparativeWormData(match)}>
+                      <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.1} />
+                      <XAxis dataKey="over" tickLine={false} axisLine={false} />
+                      <YAxis tickLine={false} axisLine={false} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Line type="monotone" dataKey="team1" stroke="var(--color-team1)" strokeWidth={3} dot={false} />
+                      {match.currentInning === 2 && <Line type="monotone" dataKey="team2" stroke="var(--color-team2)" strokeWidth={3} dot={false} />}
+                    </ReLineChart>
+                  </ChartContainer>
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
+          
+          <TabsContent value="info">
+            <Card className="border-2 shadow-sm rounded-2xl p-6">
+              <div className="space-y-4">
+                <div className="flex justify-between items-center pb-3 border-b">
+                   <span className="text-xs font-bold text-muted-foreground uppercase">Toss Winner</span>
+                   <span className="text-sm font-black">{match.tossWinner}</span>
+                </div>
+                <div className="flex justify-between items-center pb-3 border-b">
+                   <span className="text-xs font-bold text-muted-foreground uppercase">Decision</span>
+                   <span className="text-sm font-black">{match.tossChoice === 'bat' ? 'Batting' : 'Bowling'} First</span>
+                </div>
+                {match.tournamentId && (
+                  <Button variant="outline" className="w-full font-black text-xs uppercase" onClick={() => router.push(`/tournament/${match.tournamentId}`)}>View Tournament Standings</Button>
+                )}
+              </div>
+            </Card>
+          </TabsContent>
         </Tabs>
       </main>
 
-      <AlertDialog open={showTieDialog} onOpenChange={setShowTieDialog}>
-        <AlertDialogContent className="w-[90%] rounded-[2rem] sm:w-full">
-          <AlertDialogHeader>
-            <div className="bg-amber-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-               <Zap className="w-8 h-8 text-amber-600 fill-amber-600" />
-            </div>
-            <AlertDialogTitle className="text-2xl font-black text-center">It&apos;s a Tie!</AlertDialogTitle>
-            <AlertDialogDescription className="text-center font-medium text-base">
-              The scores are dead level. Do you want to settle this with a <strong>Super Over</strong>?
-              <br/><br/>
-              Format: 1 Over per side. 2 Wickets limit.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col sm:flex-row gap-3 mt-6">
-            <AlertDialogCancel className="rounded-2xl border-2 font-bold h-12 flex-1">Finish as Tie</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleStartSuperOver} 
-              className="bg-primary text-white rounded-2xl font-black h-12 flex-1 shadow-lg shadow-primary/20"
-            >
-              Start Super Over
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
       <Dialog open={showSummary} onOpenChange={setShowSummary}>
         <DialogContent className="max-w-xl w-[95%] rounded-[2.5rem] max-h-[90dvh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-center text-xl font-black uppercase tracking-tighter">Match Summary Recap</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <MatchSummaryCard match={match} />
-          </div>
+          <MatchSummaryCard match={match} />
         </DialogContent>
       </Dialog>
 
-      <footer className="pwa-footer bg-white/90 backdrop-blur-md">
-        <div className="flex items-center justify-center gap-2 font-black tracking-tight text-primary/40 uppercase text-[8px]">
-          <span className="bg-primary text-white px-1 py-0.5 rounded">FAST</span>
-          <span>ScoreCric</span>
-        </div>
-      </footer>
+      <AlertDialog open={showTieDialog} onOpenChange={setShowTieDialog}>
+        <AlertDialogContent className="w-[90%] rounded-[2rem]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-2xl font-black text-center">It&apos;s a Tie!</AlertDialogTitle>
+            <AlertDialogDescription className="text-center">Scores are level. Settle with a <strong>Super Over</strong>?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-3">
+            <AlertDialogCancel className="rounded-2xl border-2 font-bold h-12 flex-1">Finish as Tie</AlertDialogCancel>
+            <AlertDialogAction onClick={() => router.push('/match/setup')} className="bg-primary text-white rounded-2xl font-black h-12 flex-1">Start Super Over</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

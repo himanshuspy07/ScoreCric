@@ -29,7 +29,7 @@ export interface BowlerStats {
   id: string;
   name: string;
   overs: number;
-  balls: number; // For fractional overs (3.3 = 3 overs 3 balls)
+  balls: number;
   maidens: number;
   runsConceded: number;
   wickets: number;
@@ -102,4 +102,15 @@ export interface Match {
   ownerId: string;
   isSuperOver?: boolean;
   parentMatchId?: string;
+  tournamentId?: string;
+}
+
+export interface Tournament {
+  id: string;
+  name: string;
+  ownerId: string;
+  createdAt: number;
+  updatedAt: number;
+  matchIds: string[];
+  teams: string[];
 }
