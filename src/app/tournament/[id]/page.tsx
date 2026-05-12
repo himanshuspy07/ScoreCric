@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useLocalTournament, useLocalMatches, saveTournamentToLocalStorage, saveMatchToLocalStorage } from '@/lib/storage';
 import { calculateTournamentStandings } from '@/lib/match-utils';
-import { ChevronLeft, Trophy, Users, LayoutGrid, Calendar, Star, ChevronRight, Plus, Activity, PlayCircle, Clock } from 'lucide-react';
+import { ChevronLeft, Trophy, Star, ChevronRight, Plus, PlayCircle, Clock } from 'lucide-react';
 import Link from 'next/link';
 import { Match, Inning, Fixture } from '@/types/cricket';
 import { useUser } from '@/firebase';
@@ -27,6 +27,9 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
 
   const tournamentMatches = allMatches.filter(m => m.tournamentId === tournament.id);
   const standings = calculateTournamentStandings(tournamentMatches, tournament.teams);
+
+  // Safely get settings with defaults for legacy tournaments
+  const tSettings = tournament.settings || { overs: 20, playersPerTeam: 11, matchesPerTeam: 1 };
 
   // Derive Leaderboards
   const playerStats: Record<string, { runs: number; wickets: number; team: string }> = {};
@@ -69,15 +72,15 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
       id,
       title: `${fixture.teamA} vs ${fixture.teamB}`,
       format: 'Custom',
-      oversLimit: tournament.settings.overs,
+      oversLimit: tSettings.overs,
       teamA: { 
         name: fixture.teamA, 
-        players: Array.from({length: tournament.settings.playersPerTeam}, (_, i) => `${fixture.teamA} Player ${i+1}`), 
+        players: Array.from({length: tSettings.playersPerTeam}, (_, i) => `${fixture.teamA} Player ${i+1}`), 
         color: '#2C5A37' 
       },
       teamB: { 
         name: fixture.teamB, 
-        players: Array.from({length: tournament.settings.playersPerTeam}, (_, i) => `${fixture.teamB} Player ${i+1}`), 
+        players: Array.from({length: tSettings.playersPerTeam}, (_, i) => `${fixture.teamB} Player ${i+1}`), 
         color: '#1E40AF' 
       },
       status: 'live',
@@ -90,7 +93,7 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
     };
 
     // Update fixture in tournament
-    const updatedFixtures = tournament.fixtures.map(f => 
+    const updatedFixtures = (tournament.fixtures || []).map(f => 
       f.id === fixture.id ? { ...f, matchId: id, status: 'live' as any } : f
     );
     
@@ -109,8 +112,8 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
         </div>
         <h1 className="text-4xl font-black tracking-tighter">{tournament.name}</h1>
         <div className="flex items-center justify-center gap-4 mt-2">
-           <span className="text-[10px] font-bold bg-black/20 px-3 py-1 rounded-full uppercase tracking-widest">{tournament.settings.overs} OVERS</span>
-           <span className="text-[10px] font-bold bg-black/20 px-3 py-1 rounded-full uppercase tracking-widest">{tournament.settings.playersPerTeam} PLAYERS</span>
+           <span className="text-[10px] font-bold bg-black/20 px-3 py-1 rounded-full uppercase tracking-widest">{tSettings.overs} OVERS</span>
+           <span className="text-[10px] font-bold bg-black/20 px-3 py-1 rounded-full uppercase tracking-widest">{tSettings.playersPerTeam} PLAYERS</span>
         </div>
       </header>
 
@@ -157,10 +160,10 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
           <TabsContent value="fixtures" className="space-y-4">
              <div className="flex justify-between items-center mb-2">
                 <h3 className="font-black text-lg uppercase tracking-tight text-primary">Tournament Fixtures</h3>
-                <span className="text-[10px] font-bold text-muted-foreground uppercase">{tournament.fixtures.filter(f => !f.matchId).length} Upcoming</span>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase">{ (tournament.fixtures || []).filter(f => !f.matchId).length} Upcoming</span>
              </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {tournament.fixtures.map((f) => (
+                {(tournament.fixtures || []).map((f) => (
                    <Card key={f.id} className="border-2 rounded-2xl overflow-hidden group hover:shadow-lg transition-all">
                       <CardContent className="p-5 flex justify-between items-center bg-white">
                          <div className="flex-1">
@@ -182,6 +185,9 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
                       </CardContent>
                    </Card>
                 ))}
+                {(tournament.fixtures || []).length === 0 && (
+                   <div className="col-span-full py-20 text-center text-muted-foreground font-black uppercase text-xs opacity-40 border-4 border-dashed rounded-[2rem]">No fixtures generated.</div>
+                )}
              </div>
           </TabsContent>
 
