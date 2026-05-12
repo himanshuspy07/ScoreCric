@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { use } from 'react';
@@ -9,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useLocalTournament, useLocalMatches } from '@/lib/storage';
 import { calculateTournamentStandings } from '@/lib/match-utils';
-import { ChevronLeft, Trophy, Users, LayoutGrid, Calendar, Star, ChevronRight } from 'lucide-react';
+import { ChevronLeft, Trophy, Users, LayoutGrid, Calendar, Star, ChevronRight, Plus } from 'lucide-react';
 import Link from 'next/link';
 
 export default function TournamentPage({ params }: { params: Promise<{ id: string }> }) {
