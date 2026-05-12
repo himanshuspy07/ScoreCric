@@ -70,8 +70,12 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       updatedAt: Date.now()
     };
     
+    // Dynamic All Out detection: All out when (Team Size - 1) wickets fall
+    const currentBattingTeam = updatedInning.battingTeam === match.teamA.name ? match.teamA : match.teamB;
+    const maxWickets = currentBattingTeam.players.length - 1;
+    
     const oversFinished = updatedInning.overs >= match.oversLimit;
-    const allOut = updatedInning.wickets >= 10;
+    const allOut = updatedInning.wickets >= maxWickets;
     const targetAchieved = match.currentInning === 2 && updatedInning.score > (match.innings[0]?.score || 0);
 
     if (oversFinished || allOut || targetAchieved) {
@@ -92,7 +96,9 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           };
           updatedMatch.currentInning = 2;
           updatedMatch.innings[1] = nextInning;
-          toast({ title: "Inning Finished", description: "First inning completed. Start second inning scoring." });
+          
+          const reason = allOut ? "Team All Out!" : (oversFinished ? "Overs Completed!" : "Inning Finished!");
+          toast({ title: reason, description: "First inning completed. Start second inning scoring." });
         }
       } else {
         updatedMatch.status = 'completed';
@@ -110,7 +116,8 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
         // Calculate Player of the Match
         updatedMatch.manOfTheMatch = calculatePlayerOfTheMatch(updatedMatch);
         
-        toast({ title: "Match Completed", description: updatedMatch.winner === 'Tie' ? "Match Tied!" : `${updatedMatch.winner} Won!` });
+        const endReason = allOut ? "All Out!" : (oversFinished ? "Overs Finished!" : "Target Reached!");
+        toast({ title: "Match Completed", description: updatedMatch.winner === 'Tie' ? "Match Tied!" : `${endReason} ${updatedMatch.winner} Won!` });
         setShowSummary(true);
       }
     }
