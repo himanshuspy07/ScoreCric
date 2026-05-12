@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { use } from 'react';
@@ -94,7 +95,7 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
           <TabsContent value="matches" className="space-y-6">
             <div className="flex justify-between items-center">
                <h3 className="font-black text-lg uppercase tracking-tight text-primary">Fixture List</h3>
-               <Link href="/match/setup">
+               <Link href={`/match/setup?tournamentId=${tournament.id}`}>
                  <Button size="sm" className="rounded-full gap-2 font-bold"><Plus className="w-4 h-4" /> Add Match</Button>
                </Link>
             </div>

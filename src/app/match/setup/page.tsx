@@ -1,7 +1,8 @@
+
 "use client"
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Trophy, History, AlertCircle, ChevronRight, ChevronLeft } from 'lucide-react';
-import { saveMatchToLocalStorage, useLocalMatches } from '@/lib/storage';
+import { saveMatchToLocalStorage, useLocalMatches, useLocalTournament } from '@/lib/storage';
 import { Match, Inning } from '@/types/cricket';
 import { useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -24,8 +25,11 @@ const TEAM_COLORS = [
   { name: 'Sleek Black', value: '#18181B' },
 ];
 
-export default function MatchSetup() {
+function MatchSetupContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tournamentId = searchParams.get('tournamentId');
+  const { data: tournament } = useLocalTournament(tournamentId);
   const { user, signInWithGoogle } = useUser();
   const { toast } = useToast();
   const [step, setStep] = useState(1);
@@ -47,8 +51,8 @@ export default function MatchSetup() {
     format: 'T20',
     overs: '20',
     playerCount: 11,
-    teamAName: 'Team A',
-    teamBName: 'Team B',
+    teamAName: '',
+    teamBName: '',
     teamAColor: '#2C5A37',
     teamBColor: '#1E40AF',
     teamAPlayers: Array.from({length: 11}, (_, i) => `A Player ${i+1}`),
@@ -56,6 +60,20 @@ export default function MatchSetup() {
     tossWinner: 'teamA',
     tossChoice: 'bat',
   });
+
+  // Initialize tournament team names if applicable
+  useEffect(() => {
+    if (tournament && !matchInfo.teamAName && !matchInfo.teamBName) {
+      setMatchInfo(prev => ({
+        ...prev,
+        teamAName: tournament.teams[0] || 'Team A',
+        teamBName: tournament.teams[1] || 'Team B',
+        title: prev.title || `${tournament.name} Match`
+      }));
+    } else if (!tournament && !matchInfo.teamAName) {
+        setMatchInfo(prev => ({...prev, teamAName: 'Team A', teamBName: 'Team B'}));
+    }
+  }, [tournament]);
 
   if (!user) {
     return (
@@ -77,7 +95,19 @@ export default function MatchSetup() {
     );
   }
 
-  const handleNext = () => setStep(step + 1);
+  const handleNext = () => {
+    if (step === 2) {
+      if (matchInfo.teamAName === matchInfo.teamBName) {
+        toast({ variant: "destructive", title: "Invalid Selection", description: "Team A and Team B cannot be the same." });
+        return;
+      }
+      if (!matchInfo.teamAName || !matchInfo.teamBName) {
+        toast({ variant: "destructive", title: "Missing Teams", description: "Please select or enter both team names." });
+        return;
+      }
+    }
+    setStep(step + 1);
+  };
   const handleBack = () => setStep(step - 1);
 
   const handleFormatChange = (format: string) => {
@@ -153,7 +183,8 @@ export default function MatchSetup() {
       innings: [createInning(battingTeam, bowlingTeam), null],
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      ownerId: user?.uid || 'local-user'
+      ownerId: user?.uid || 'local-user',
+      tournamentId: tournamentId || undefined
     };
 
     saveMatchToLocalStorage(newMatch);
@@ -228,7 +259,20 @@ export default function MatchSetup() {
               <div className="space-y-6">
                 <div className="space-y-2">
                   <Label className="text-base font-black flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-primary" /> TEAM A IDENTITY</Label>
-                  <Input placeholder="Home Team Name" value={matchInfo.teamAName} onChange={e => setMatchInfo({...matchInfo, teamAName: e.target.value})} className="font-black h-14 rounded-2xl border-2 text-xl px-6" />
+                  {tournament ? (
+                    <Select value={matchInfo.teamAName} onValueChange={val => setMatchInfo({...matchInfo, teamAName: val})}>
+                      <SelectTrigger className="font-black h-14 rounded-2xl border-2 text-xl px-6">
+                        <SelectValue placeholder="Select Team A" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-2xl">
+                        {tournament.teams.map(team => (
+                          <SelectItem key={team} value={team} className="font-bold">{team}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input placeholder="Home Team Name" value={matchInfo.teamAName} onChange={e => setMatchInfo({...matchInfo, teamAName: e.target.value})} className="font-black h-14 rounded-2xl border-2 text-xl px-6" />
+                  )}
                 </div>
                 <div className="grid grid-cols-6 gap-3">
                   {TEAM_COLORS.map(color => (
@@ -239,7 +283,20 @@ export default function MatchSetup() {
               <div className="space-y-6">
                 <div className="space-y-2">
                   <Label className="text-base font-black flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-secondary" /> TEAM B IDENTITY</Label>
-                  <Input placeholder="Away Team Name" value={matchInfo.teamBName} onChange={e => setMatchInfo({...matchInfo, teamBName: e.target.value})} className="font-black h-14 rounded-2xl border-2 text-xl px-6" />
+                  {tournament ? (
+                    <Select value={matchInfo.teamBName} onValueChange={val => setMatchInfo({...matchInfo, teamBName: val})}>
+                      <SelectTrigger className="font-black h-14 rounded-2xl border-2 text-xl px-6">
+                        <SelectValue placeholder="Select Team B" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-2xl">
+                        {tournament.teams.map(team => (
+                          <SelectItem key={team} value={team} className="font-bold">{team}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input placeholder="Away Team Name" value={matchInfo.teamBName} onChange={e => setMatchInfo({...matchInfo, teamBName: e.target.value})} className="font-black h-14 rounded-2xl border-2 text-xl px-6" />
+                  )}
                 </div>
                 <div className="grid grid-cols-6 gap-3">
                   {TEAM_COLORS.map(color => (
@@ -253,8 +310,8 @@ export default function MatchSetup() {
           {step === 3 && (
             <Tabs defaultValue="teamA" className="w-full">
               <TabsList className="grid w-full grid-cols-2 mb-8 bg-muted p-2 h-16 rounded-[1.5rem]">
-                <TabsTrigger value="teamA" className="font-black text-lg rounded-xl data-[state=active]:shadow-lg">{matchInfo.teamAName}</TabsTrigger>
-                <TabsTrigger value="teamB" className="font-black text-lg rounded-xl data-[state=active]:shadow-lg">{matchInfo.teamBName}</TabsTrigger>
+                <TabsTrigger value="teamA" className="font-black text-lg rounded-xl data-[state=active]:shadow-lg">{matchInfo.teamAName || 'Team A'}</TabsTrigger>
+                <TabsTrigger value="teamB" className="font-black text-lg rounded-xl data-[state=active]:shadow-lg">{matchInfo.teamBName || 'Team B'}</TabsTrigger>
               </TabsList>
               <TabsContent value="teamA" className="space-y-6">
                 <div className="flex justify-between items-center bg-muted/30 p-4 rounded-2xl">
@@ -314,11 +371,11 @@ export default function MatchSetup() {
                 <div className="grid grid-cols-2 gap-6">
                   <div onClick={() => setMatchInfo({...matchInfo, tossWinner: 'teamA'})} className={`p-8 border-4 rounded-3xl cursor-pointer text-center transition-all shadow-md hover:shadow-xl ${matchInfo.tossWinner === 'teamA' ? 'border-primary bg-primary text-white scale-105' : 'border-muted hover:border-primary/40'}`}>
                     <Trophy className={`w-8 h-8 mx-auto mb-3 ${matchInfo.tossWinner === 'teamA' ? 'text-white' : 'text-primary/20'}`} />
-                    <span className="font-black text-lg uppercase tracking-tight">{matchInfo.teamAName}</span>
+                    <span className="font-black text-lg uppercase tracking-tight">{matchInfo.teamAName || 'Team A'}</span>
                   </div>
                   <div onClick={() => setMatchInfo({...matchInfo, tossWinner: 'teamB'})} className={`p-8 border-4 rounded-3xl cursor-pointer text-center transition-all shadow-md hover:shadow-xl ${matchInfo.tossWinner === 'teamB' ? 'border-primary bg-primary text-white scale-105' : 'border-muted hover:border-primary/40'}`}>
                     <Trophy className={`w-8 h-8 mx-auto mb-3 ${matchInfo.tossWinner === 'teamB' ? 'text-white' : 'text-primary/20'}`} />
-                    <span className="font-black text-lg uppercase tracking-tight">{matchInfo.teamBName}</span>
+                    <span className="font-black text-lg uppercase tracking-tight">{matchInfo.teamBName || 'Team B'}</span>
                   </div>
                 </div>
               </div>
@@ -359,5 +416,13 @@ export default function MatchSetup() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function MatchSetup() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
+      <MatchSetupContent />
+    </Suspense>
   );
 }
