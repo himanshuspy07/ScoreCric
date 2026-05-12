@@ -17,23 +17,33 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useUser } from '@/firebase';
-import { deleteMatchFromLocalStorage, useLocalMatches, useLocalTournaments } from '@/lib/storage';
+import { deleteMatchFromLocalStorage, deleteTournamentFromLocalStorage, useLocalMatches, useLocalTournaments } from '@/lib/storage';
 import { Match, Tournament } from '@/types/cricket';
-import { Trophy, Plus, History, Trash2, LayoutGrid, ChevronRight, Activity, Calendar } from 'lucide-react';
+import { Trophy, Plus, Trash2, LayoutGrid, ChevronRight, Calendar } from 'lucide-react';
 
 export default function Home() {
   const { user, signInWithGoogle, loading: authLoading } = useUser();
   const [matchToDelete, setMatchToDelete] = useState<Match | null>(null);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isMatchDeleteDialogOpen, setIsMatchDeleteDialogOpen] = useState(false);
+  const [tournamentToDelete, setTournamentToDelete] = useState<Tournament | null>(null);
+  const [isTournamentDeleteDialogOpen, setIsTournamentDeleteDialogOpen] = useState(false);
 
   const { data: matches, loading: matchesLoading } = useLocalMatches();
   const { data: tournaments } = useLocalTournaments();
 
-  const handleDeleteConfirm = () => {
+  const handleMatchDeleteConfirm = () => {
     if (matchToDelete) {
       deleteMatchFromLocalStorage(matchToDelete.id);
       setMatchToDelete(null);
-      setIsDeleteDialogOpen(false);
+      setIsMatchDeleteDialogOpen(false);
+    }
+  };
+
+  const handleTournamentDeleteConfirm = () => {
+    if (tournamentToDelete) {
+      deleteTournamentFromLocalStorage(tournamentToDelete.id);
+      setTournamentToDelete(null);
+      setIsTournamentDeleteDialogOpen(false);
     }
   };
 
@@ -119,7 +129,7 @@ export default function Home() {
                       e.preventDefault();
                       e.stopPropagation();
                       setMatchToDelete(match);
-                      setIsDeleteDialogOpen(true);
+                      setIsMatchDeleteDialogOpen(true);
                     }}
                   >
                     <Trash2 className="w-4 h-4" />
@@ -142,28 +152,43 @@ export default function Home() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {tournaments.map((t) => (
-                <Link key={t.id} href={`/tournament/${t.id}`}>
-                  <Card className="hover:shadow-xl transition-all border-2 rounded-3xl overflow-hidden group">
-                    <CardContent className="p-0">
-                      <div className="bg-primary p-6 text-white">
-                        <Trophy className="w-8 h-8 mb-4 opacity-40" />
-                        <h3 className="text-2xl font-black tracking-tight">{t.name}</h3>
-                        <p className="text-xs font-bold opacity-60 uppercase tracking-widest mt-1">{t.teams.length} Teams • {t.matchIds.length} Matches</p>
-                      </div>
-                      <div className="p-6 flex justify-between items-center bg-white group-hover:bg-primary/5 transition-colors">
-                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">View Standings & Stats</span>
-                        <ChevronRight className="w-5 h-5 text-primary opacity-20 group-hover:opacity-100" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
+                <div key={t.id} className="group relative">
+                  <Link href={`/tournament/${t.id}`}>
+                    <Card className="hover:shadow-xl transition-all border-2 rounded-3xl overflow-hidden bg-white group-hover:-translate-y-1">
+                      <CardContent className="p-0">
+                        <div className="bg-primary p-6 text-white">
+                          <Trophy className="w-8 h-8 mb-4 opacity-40" />
+                          <h3 className="text-2xl font-black tracking-tight">{t.name}</h3>
+                          <p className="text-xs font-bold opacity-60 uppercase tracking-widest mt-1">{t.teams.length} Teams • {t.fixtures?.length || 0} Fixtures</p>
+                        </div>
+                        <div className="p-6 flex justify-between items-center bg-white group-hover:bg-primary/5 transition-colors">
+                          <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">View Standings & Stats</span>
+                          <ChevronRight className="w-5 h-5 text-primary opacity-20 group-hover:opacity-100" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-white/50 hover:text-white hover:bg-white/10 z-10 rounded-full"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setTournamentToDelete(t);
+                      setIsTournamentDeleteDialogOpen(true);
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
               ))}
             </div>
           )}
         </TabsContent>
       </Tabs>
 
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <AlertDialog open={isMatchDeleteDialogOpen} onOpenChange={setIsMatchDeleteDialogOpen}>
         <AlertDialogContent className="rounded-[2rem] w-[95%] sm:max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-2xl font-black">Delete Match?</AlertDialogTitle>
@@ -174,10 +199,30 @@ export default function Home() {
           <AlertDialogFooter className="flex-col sm:flex-row gap-2">
             <AlertDialogCancel className="rounded-xl h-12 font-bold flex-1">Keep Match</AlertDialogCancel>
             <AlertDialogAction 
-              onClick={handleDeleteConfirm} 
+              onClick={handleMatchDeleteConfirm} 
               className="bg-destructive text-white hover:bg-destructive/90 rounded-xl h-12 font-black flex-1"
             >
               Delete Permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isTournamentDeleteDialogOpen} onOpenChange={setIsTournamentDeleteDialogOpen}>
+        <AlertDialogContent className="rounded-[2rem] w-[95%] sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-2xl font-black text-destructive">Delete Tournament?</AlertDialogTitle>
+            <AlertDialogDescription className="text-base font-medium">
+              This will permanently remove the league <span className="text-primary font-bold">{tournamentToDelete?.name}</span>, including its fixtures and settings. Individual match results will remain in your recent matches.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel className="rounded-xl h-12 font-bold flex-1">Keep League</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleTournamentDeleteConfirm} 
+              className="bg-destructive text-white hover:bg-destructive/90 rounded-xl h-12 font-black flex-1"
+            >
+              Confirm Deletion
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

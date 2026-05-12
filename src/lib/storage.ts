@@ -89,6 +89,13 @@ export const saveTournamentToLocalStorage = (tournament: Tournament) => {
   window.dispatchEvent(new CustomEvent('tournament_update'));
 };
 
+export const deleteTournamentFromLocalStorage = (id: string) => {
+  const tournaments = getLocalTournaments();
+  const filtered = tournaments.filter(t => t.id !== id);
+  localStorage.setItem(TOURNAMENT_KEY, JSON.stringify(filtered));
+  window.dispatchEvent(new CustomEvent('tournament_update'));
+};
+
 export function useLocalTournaments() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
