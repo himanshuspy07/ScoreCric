@@ -110,7 +110,7 @@ export interface Fixture {
   teamA: string;
   teamB: string;
   matchId?: string;
-  status: 'pending' | 'completed';
+  status: 'pending' | 'completed' | 'live';
 }
 
 export interface TournamentSettings {
@@ -126,7 +126,7 @@ export interface Tournament {
   createdAt: number;
   updatedAt: number;
   matchIds: string[];
-  teams: string[];
+  teams: Team[];
   settings: TournamentSettings;
   fixtures: Fixture[];
 }

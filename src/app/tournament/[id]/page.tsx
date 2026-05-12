@@ -11,7 +11,7 @@ import { useLocalTournament, useLocalMatches, saveTournamentToLocalStorage, save
 import { calculateTournamentStandings } from '@/lib/match-utils';
 import { ChevronLeft, Trophy, Star, ChevronRight, Plus, PlayCircle, Clock } from 'lucide-react';
 import Link from 'next/link';
-import { Match, Inning, Fixture } from '@/types/cricket';
+import { Match, Inning, Fixture, Team } from '@/types/cricket';
 import { useUser } from '@/firebase';
 
 export default function TournamentPage({ params }: { params: Promise<{ id: string }> }) {
@@ -26,9 +26,10 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
   if (!tournament) return <div className="min-h-screen flex items-center justify-center">Tournament Not Found</div>;
 
   const tournamentMatches = allMatches.filter(m => m.tournamentId === tournament.id);
-  const standings = calculateTournamentStandings(tournamentMatches, tournament.teams);
+  const teamNames = tournament.teams.map((t: Team | string) => typeof t === 'string' ? t : t.name);
+  const standings = calculateTournamentStandings(tournamentMatches, teamNames);
 
-  // Safely get settings with defaults for legacy tournaments
+  // Safely get settings
   const tSettings = tournament.settings || { overs: 20, playersPerTeam: 11, matchesPerTeam: 1 };
 
   // Derive Leaderboards
@@ -53,6 +54,10 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
   const startFixture = (fixture: Fixture) => {
     if (!user) return;
     
+    // Find team branding from tournament
+    const teamAData = tournament.teams.find((t: Team | string) => (typeof t === 'string' ? t : t.name) === fixture.teamA) as Team;
+    const teamBData = tournament.teams.find((t: Team | string) => (typeof t === 'string' ? t : t.name) === fixture.teamB) as Team;
+
     const id = Math.random().toString(36).substr(2, 9);
     const createInning = (batting: string, bowling: string): Inning => ({
       battingTeam: batting,
@@ -75,13 +80,13 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
       oversLimit: tSettings.overs,
       teamA: { 
         name: fixture.teamA, 
-        players: Array.from({length: tSettings.playersPerTeam}, (_, i) => `${fixture.teamA} Player ${i+1}`), 
-        color: '#2C5A37' 
+        players: teamAData?.players || Array.from({length: tSettings.playersPerTeam}, (_, i) => `${fixture.teamA} Player ${i+1}`), 
+        color: teamAData?.color || '#2C5A37' 
       },
       teamB: { 
         name: fixture.teamB, 
-        players: Array.from({length: tSettings.playersPerTeam}, (_, i) => `${fixture.teamB} Player ${i+1}`), 
-        color: '#1E40AF' 
+        players: teamBData?.players || Array.from({length: tSettings.playersPerTeam}, (_, i) => `${fixture.teamB} Player ${i+1}`), 
+        color: teamBData?.color || '#1E40AF' 
       },
       status: 'live',
       currentInning: 1,
