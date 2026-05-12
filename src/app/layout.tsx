@@ -46,6 +46,9 @@ export default function RootLayout({
             <main className="flex-1">
               {children}
             </main>
+            <footer className="py-6 text-center text-xs font-black uppercase tracking-[0.2em] text-muted-foreground/40">
+              Made by Himanshu Yadav
+            </footer>
           </div>
           <Toaster />
         </FirebaseClientProvider>

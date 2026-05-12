@@ -19,7 +19,7 @@ import {
 import { saveMatchToLocalStorage, useLocalMatch } from '@/lib/storage';
 import { Match, Inning, Ball } from '@/types/cricket';
 import { getRunRate, getRequiredRunRate, getWinProbability, getComparativeManhattanData, getComparativeWormData, calculatePlayerOfTheMatch } from '@/lib/match-utils';
-import { ChevronLeft, Share2, BarChart3, LineChart, Trophy, Zap, Activity, Target, Download, Users } from 'lucide-react';
+import { ChevronLeft, Share2, BarChart3, LineChart, Trophy, Zap, Activity, Target, Download, Users, Radio, Copy, CheckCircle2 } from 'lucide-react';
 import ScoringInterface from '@/components/scoring/ScoringInterface';
 import MatchScorecard from '@/components/scorecard/MatchScorecard';
 import PartnershipView from '@/components/scorecard/PartnershipView';
@@ -28,7 +28,9 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLe
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Line, LineChart as ReLineChart } from 'recharts';
 import { useUser } from '@/firebase';
 import { MatchSummaryCard } from '@/components/share/MatchSummaryCard';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
+import { useLiveSharing } from '@/hooks/use-live-sharing';
+import { QRCodeSVG } from 'qrcode.react';
 
 export default function MatchPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -38,8 +40,10 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
   const [activeTab, setActiveTab] = useState('score');
   const [showTieDialog, setShowTieDialog] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
+  const [showLiveDialog, setShowLiveDialog] = useState(false);
 
   const { data: match, loading } = useLocalMatch(resolvedParams.id);
+  const { peerId, status, startSharing, stopSharing } = useLiveSharing(match);
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-[#F3FAF4]">
@@ -123,19 +127,10 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
     saveMatchToLocalStorage(updatedMatch);
   };
 
-  const handleShare = async () => {
-    const shareText = `${match.teamA.name} vs ${match.teamB.name}\nScore: ${currentInning.score}/${currentInning.wickets} in ${currentInning.overs}.${currentInning.ballsInOver} overs`;
-    const shareUrl = window.location.href;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: 'ScoreCric Update', text: shareText, url: shareUrl });
-      } catch (error: any) {
-        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
-        toast({ title: "Copied", description: "Match link copied to clipboard." });
-      }
-    } else {
-      await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
-      toast({ title: "Copied", description: "Match link copied to clipboard." });
+  const handleCopyPeerId = () => {
+    if (peerId) {
+      navigator.clipboard.writeText(peerId);
+      toast({ title: "Copied!", description: "Live ID copied to clipboard." });
     }
   };
 
@@ -154,12 +149,23 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
             <p className="text-xs font-bold bg-black/10 px-3 py-0.5 rounded-full mt-1 uppercase tracking-tighter">{match.format} • {match.oversLimit} OVERS</p>
           </div>
           <div className="flex gap-2">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className={`hover:bg-white/10 ${status === 'connected' ? 'text-amber-400' : ''}`}
+              onClick={() => setShowLiveDialog(true)}
+            >
+              <Radio className="w-5 h-5" />
+            </Button>
             {match.status === 'completed' && (
               <Button variant="ghost" size="icon" className="hover:bg-white/10" onClick={() => setShowSummary(true)}>
                 <Download className="w-5 h-5" />
               </Button>
             )}
-            <Button variant="ghost" size="icon" className="hover:bg-white/10" onClick={handleShare}>
+            <Button variant="ghost" size="icon" className="hover:bg-white/10" onClick={() => {
+              const shareText = `${match.teamA.name} vs ${match.teamB.name}\nScore: ${currentInning.score}/${currentInning.wickets} in ${currentInning.overs}.${currentInning.ballsInOver} overs`;
+              if (navigator.share) navigator.share({ title: 'ScoreCric Update', text: shareText, url: window.location.href });
+            }}>
               <Share2 className="w-5 h-5" />
             </Button>
           </div>
@@ -188,14 +194,6 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                 </div>
               )}
             </div>
-            {match.currentInning === 2 && match.innings[0] && (
-              <div className="bg-amber-500/90 shadow-lg px-3 py-1.5 rounded-xl">
-                <p className="text-[10px] font-black text-amber-900/60 uppercase">Req Rate</p>
-                <p className="text-sm sm:text-base font-black text-white">
-                  {getRequiredRunRate(match.innings[0].score + 1, currentInning.score, (match.oversLimit * 6) - (currentInning.overs * 6 + currentInning.ballsInOver))}
-                </p>
-              </div>
-            )}
           </div>
         </div>
 
@@ -253,7 +251,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
 
           <TabsContent value="partners">
             <div className="space-y-6">
-              <PartnershipView inning={match.innings[0]!} />
+              {match.innings[0] && <PartnershipView inning={match.innings[0]} />}
               {match.innings[1] && <PartnershipView inning={match.innings[1]} />}
             </div>
           </TabsContent>
@@ -317,6 +315,48 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           </TabsContent>
         </Tabs>
       </main>
+
+      <Dialog open={showLiveDialog} onOpenChange={setShowLiveDialog}>
+        <DialogContent className="max-w-md w-[95%] rounded-[2.5rem]">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black text-primary">Live Share 📡</DialogTitle>
+            <DialogDescription className="font-medium">Broadcast this match live to viewers over the internet.</DialogDescription>
+          </DialogHeader>
+          <div className="py-6 space-y-6">
+            {status === 'disconnected' ? (
+              <div className="text-center space-y-4">
+                <div className="bg-muted/30 p-8 rounded-3xl border-2 border-dashed">
+                  <Radio className="w-12 h-12 mx-auto text-primary/20 mb-4" />
+                  <p className="text-sm font-bold text-muted-foreground leading-relaxed">Going live allows others to see your scorecard and every ball update in real-time.</p>
+                </div>
+                <Button onClick={startSharing} className="w-full h-14 rounded-2xl font-black text-lg">Activate Live Stream</Button>
+              </div>
+            ) : (
+              <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500">
+                <div className="flex items-center justify-center bg-white p-6 rounded-3xl shadow-inner border">
+                  {peerId ? (
+                    <QRCodeSVG value={`${window.location.origin}/live/${peerId}`} size={200} />
+                  ) : (
+                    <div className="w-[200px] h-[200px] bg-muted animate-pulse rounded-xl" />
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Peer Connection ID</Label>
+                  <div className="flex gap-2">
+                    <div className="flex-1 bg-muted/50 h-12 rounded-xl flex items-center px-4 font-black tracking-tighter text-sm truncate">{peerId || 'Generating...'}</div>
+                    <Button variant="outline" size="icon" className="h-12 w-12 rounded-xl" onClick={handleCopyPeerId}><Copy className="w-4 h-4" /></Button>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 bg-green-50 text-green-700 p-4 rounded-2xl border border-green-100">
+                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                  <span className="text-xs font-black uppercase tracking-widest">Live Broadcasting Enabled</span>
+                </div>
+                <Button variant="destructive" onClick={stopSharing} className="w-full h-12 rounded-2xl font-black">End Live Stream</Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showSummary} onOpenChange={setShowSummary}>
         <DialogContent className="max-w-xl w-[95%] rounded-[2.5rem] max-h-[90dvh] overflow-y-auto">

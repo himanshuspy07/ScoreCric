@@ -3,9 +3,12 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,14 +22,16 @@ import {
 import { useUser } from '@/firebase';
 import { deleteMatchFromLocalStorage, deleteTournamentFromLocalStorage, useLocalMatches, useLocalTournaments } from '@/lib/storage';
 import { Match, Tournament } from '@/types/cricket';
-import { Trophy, Plus, Trash2, LayoutGrid, ChevronRight, Calendar } from 'lucide-react';
+import { Trophy, Plus, Trash2, LayoutGrid, ChevronRight, Calendar, Radio, PlayCircle } from 'lucide-react';
 
 export default function Home() {
+  const router = useRouter();
   const { user, signInWithGoogle, loading: authLoading } = useUser();
   const [matchToDelete, setMatchToDelete] = useState<Match | null>(null);
   const [isMatchDeleteDialogOpen, setIsMatchDeleteDialogOpen] = useState(false);
   const [tournamentToDelete, setTournamentToDelete] = useState<Tournament | null>(null);
   const [isTournamentDeleteDialogOpen, setIsTournamentDeleteDialogOpen] = useState(false);
+  const [liveId, setLiveId] = useState('');
 
   const { data: matches, loading: matchesLoading } = useLocalMatches();
   const { data: tournaments } = useLocalTournaments();
@@ -47,10 +52,17 @@ export default function Home() {
     }
   };
 
+  const handleJoinLive = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (liveId.trim()) {
+      router.push(`/live/${liveId.trim()}`);
+    }
+  };
+
   return (
-    <div className="max-w-7xl mx-auto w-full px-4 pt-6 pb-24 sm:pt-10">
+    <div className="max-w-7xl mx-auto w-full px-4 pt-6 pb-24 sm:pt-10 space-y-12">
       {!user && !authLoading && (
-        <section className="mb-12 text-center py-16 px-6 rounded-[2.5rem] bg-gradient-to-br from-primary to-primary/80 text-white shadow-2xl relative overflow-hidden">
+        <section className="text-center py-16 px-6 rounded-[2.5rem] bg-gradient-to-br from-primary to-primary/80 text-white shadow-2xl relative overflow-hidden">
           <div className="relative z-10 max-w-2xl mx-auto">
             <h2 className="text-4xl sm:text-6xl font-black mb-6 tracking-tighter leading-none">Live Cricket, Pro Results.</h2>
             <p className="text-white/80 text-lg font-medium mb-10">Score matches instantly and manage your local league with ease.</p>
@@ -60,6 +72,31 @@ export default function Home() {
           </div>
         </section>
       )}
+
+      <Card className="max-w-xl mx-auto border-2 rounded-[2.5rem] shadow-xl overflow-hidden bg-white">
+        <CardContent className="p-8 space-y-6">
+          <div className="flex items-center gap-3">
+             <div className="bg-red-500 p-2 rounded-xl animate-pulse">
+                <Radio className="w-5 h-5 text-white" />
+             </div>
+             <div>
+                <h3 className="text-xl font-black tracking-tighter uppercase">Watch Live Match</h3>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Connect to a live scorer device</p>
+             </div>
+          </div>
+          <form onSubmit={handleJoinLive} className="flex gap-2">
+            <Input 
+              placeholder="Enter Match ID (e.g. scorecric-abc123)" 
+              value={liveId}
+              onChange={(e) => setLiveId(e.target.value)}
+              className="h-14 rounded-2xl border-2 font-bold bg-muted/20"
+            />
+            <Button type="submit" className="h-14 px-6 rounded-2xl font-black gap-2">
+               <PlayCircle className="w-5 h-5" /> Join
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
 
       <Tabs defaultValue="matches" className="space-y-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
