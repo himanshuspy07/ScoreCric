@@ -87,9 +87,9 @@ export default function Home() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {matches.map((match) => (
-                <div key={match.id} className="group">
+                <div key={match.id} className="group relative">
                   <Link href={`/match/${match.id}`}>
-                    <Card className="h-full hover:shadow-2xl transition-all duration-500 cursor-pointer border-2 hover:border-primary/40 bg-white group-hover:-translate-y-1 rounded-3xl">
+                    <Card className="h-full hover:shadow-2xl transition-all duration-500 cursor-pointer border-2 hover:border-primary/40 bg-white group-hover:-translate-y-1 rounded-3xl overflow-hidden">
                       <CardContent className="p-6">
                         <div className="flex justify-between items-start mb-4">
                           <div>
@@ -111,6 +111,19 @@ export default function Home() {
                       </CardContent>
                     </Card>
                   </Link>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10 z-10 rounded-full"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setMatchToDelete(match);
+                      setIsDeleteDialogOpen(true);
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                 </div>
               ))}
             </div>
@@ -151,11 +164,21 @@ export default function Home() {
       </Tabs>
 
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent className="rounded-[2rem]">
-          <AlertDialogHeader><AlertDialogTitle>Delete Match?</AlertDialogTitle></AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive rounded-xl">Delete</AlertDialogAction>
+        <AlertDialogContent className="rounded-[2rem] w-[95%] sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-2xl font-black">Delete Match?</AlertDialogTitle>
+            <AlertDialogDescription className="text-base font-medium">
+              This will permanently remove the match data for <span className="text-primary font-bold">{matchToDelete?.teamA.name} vs {matchToDelete?.teamB.name}</span>. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel className="rounded-xl h-12 font-bold flex-1">Keep Match</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteConfirm} 
+              className="bg-destructive text-white hover:bg-destructive/90 rounded-xl h-12 font-black flex-1"
+            >
+              Delete Permanently
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
