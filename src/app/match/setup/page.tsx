@@ -12,7 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Trophy, History, AlertCircle, ChevronRight, ChevronLeft } from 'lucide-react';
 import { saveMatchToLocalStorage, useLocalMatches, useLocalTournament } from '@/lib/storage';
-import { Match, Inning } from '@/types/cricket';
+import { Match, Inning, Team } from '@/types/cricket';
 import { useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 
@@ -64,10 +64,15 @@ function MatchSetupContent() {
   // Initialize tournament team names if applicable
   useEffect(() => {
     if (tournament && !matchInfo.teamAName && !matchInfo.teamBName) {
+      const firstTeam = tournament.teams[0];
+      const secondTeam = tournament.teams[1];
+      const teamAName = typeof firstTeam === 'string' ? firstTeam : firstTeam?.name || 'Team A';
+      const teamBName = typeof secondTeam === 'string' ? secondTeam : secondTeam?.name || 'Team B';
+
       setMatchInfo(prev => ({
         ...prev,
-        teamAName: tournament.teams[0] || 'Team A',
-        teamBName: tournament.teams[1] || 'Team B',
+        teamAName,
+        teamBName,
         title: prev.title || `${tournament.name} Match`
       }));
     } else if (!tournament && !matchInfo.teamAName) {
@@ -265,9 +270,12 @@ function MatchSetupContent() {
                         <SelectValue placeholder="Select Team A" />
                       </SelectTrigger>
                       <SelectContent className="rounded-2xl">
-                        {tournament.teams.map(team => (
-                          <SelectItem key={team} value={team} className="font-bold">{team}</SelectItem>
-                        ))}
+                        {tournament.teams.map(team => {
+                          const name = typeof team === 'string' ? team : team.name;
+                          return (
+                            <SelectItem key={name} value={name} className="font-bold">{name}</SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   ) : (
@@ -289,9 +297,12 @@ function MatchSetupContent() {
                         <SelectValue placeholder="Select Team B" />
                       </SelectTrigger>
                       <SelectContent className="rounded-2xl">
-                        {tournament.teams.map(team => (
-                          <SelectItem key={team} value={team} className="font-bold">{team}</SelectItem>
-                        ))}
+                        {tournament.teams.map(team => {
+                          const name = typeof team === 'string' ? team : team.name;
+                          return (
+                            <SelectItem key={name} value={name} className="font-bold">{name}</SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   ) : (
