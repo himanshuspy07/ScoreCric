@@ -253,7 +253,9 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                 <div className="bg-primary/10 p-6 rounded-full w-fit mx-auto mb-6">
                    <Trophy className="w-10 h-10 text-primary" />
                 </div>
-                <h3 className="text-2xl font-black text-primary mb-2">Victory!</h3>
+                <h3 className="text-2xl font-black text-primary mb-2">
+                  {match.winner === 'Tie' ? "Tied!" : "Victory!"}
+                </h3>
                 <Button onClick={() => setShowSummary(true)} className="font-bold rounded-xl h-12 px-8">Share Result Recap</Button>
               </Card>
             )}
