@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useState, use } from 'react';
@@ -19,10 +20,11 @@ import {
 import { saveMatchToLocalStorage, useLocalMatch } from '@/lib/storage';
 import { Match, Inning, Ball } from '@/types/cricket';
 import { getRunRate, getRequiredRunRate, getWinProbability, getComparativeManhattanData, getComparativeWormData, calculatePlayerOfTheMatch } from '@/lib/match-utils';
-import { ChevronLeft, Share2, BarChart3, LineChart, Trophy, Zap, Activity, Target, Download, Users, Radio, Copy, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, Share2, BarChart3, LineChart, Trophy, Zap, Activity, Target, Download, Users, Radio, Copy, CheckCircle2, TrendingUp } from 'lucide-react';
 import ScoringInterface from '@/components/scoring/ScoringInterface';
 import MatchScorecard from '@/components/scorecard/MatchScorecard';
 import PartnershipView from '@/components/scorecard/PartnershipView';
+import MatchStory from '@/components/scorecard/MatchStory';
 import { useToast } from "@/hooks/use-toast";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from '@/components/ui/chart';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Line, LineChart as ReLineChart } from 'recharts';
@@ -63,6 +65,12 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
 
   const battingTeamObj = currentInning.battingTeam === match.teamA.name ? match.teamA : match.teamB;
   const brandingColor = battingTeamObj.color || '#2C5A37';
+
+  const totalBalls = (currentInning.overs * 6) + currentInning.ballsInOver;
+  const matchTotalBalls = match.oversLimit * 6;
+  const ballsRemaining = Math.max(0, matchTotalBalls - totalBalls);
+  const targetScore = (match.innings[0]?.score || 0) + 1;
+  const rrr = getRequiredRunRate(targetScore, currentInning.score, ballsRemaining);
 
   const handleScoreUpdate = (updatedInning: Inning) => {
     if (user && user.uid !== match.ownerId) return;
@@ -185,13 +193,19 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
             <div className="flex gap-2">
               <div className="bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-white/10">
                  <p className="text-[10px] font-black opacity-60 uppercase">Run Rate</p>
-                 <p className="text-sm sm:text-base font-black">{getRunRate(currentInning.score, currentInning.overs * 6 + currentInning.ballsInOver)}</p>
+                 <p className="text-sm sm:text-base font-black">{getRunRate(currentInning.score, totalBalls)}</p>
               </div>
               {match.currentInning === 2 && match.innings[0] && (
-                <div className="bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-white/10 flex flex-col items-center">
-                   <p className="text-[10px] font-black opacity-60 uppercase">Target</p>
-                   <p className="text-sm sm:text-base font-black">{match.innings[0].score + 1}</p>
-                </div>
+                <>
+                  <div className="bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-white/10 flex flex-col items-center">
+                    <p className="text-[10px] font-black opacity-60 uppercase">Target</p>
+                    <p className="text-sm sm:text-base font-black">{targetScore}</p>
+                  </div>
+                  <div className="bg-amber-500/20 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-amber-500/30 flex flex-col items-center">
+                    <p className="text-[10px] font-black text-amber-300 uppercase">Req RR</p>
+                    <p className="text-sm sm:text-base font-black text-amber-200">{rrr}</p>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -296,6 +310,10 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
             </div>
           </TabsContent>
           
+          <TabsContent value="timeline">
+            <MatchStory match={match} />
+          </TabsContent>
+
           <TabsContent value="info">
             <Card className="border-2 shadow-sm rounded-2xl p-6">
               <div className="space-y-4">

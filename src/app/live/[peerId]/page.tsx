@@ -7,10 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Match, Inning } from '@/types/cricket';
-import { getRunRate, getWinProbability, getComparativeManhattanData, getComparativeWormData } from '@/lib/match-utils';
+import { getRunRate, getRequiredRunRate, getWinProbability, getComparativeManhattanData, getComparativeWormData } from '@/lib/match-utils';
 import { ChevronLeft, Share2, BarChart3, LineChart, Zap, Activity, Radio, Info } from 'lucide-react';
 import MatchScorecard from '@/components/scorecard/MatchScorecard';
 import PartnershipView from '@/components/scorecard/PartnershipView';
+import MatchStory from '@/components/scorecard/MatchStory';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Line, LineChart as ReLineChart } from 'recharts';
 import { useLiveViewer } from '@/hooks/use-live-sharing';
@@ -35,6 +36,12 @@ export default function LiveViewerPage({ params }: { params: Promise<{ peerId: s
   const winProb = getWinProbability(match);
   const battingTeamObj = currentInning.battingTeam === match.teamA.name ? match.teamA : match.teamB;
   const brandingColor = battingTeamObj.color || '#2C5A37';
+
+  const totalBalls = (currentInning.overs * 6) + currentInning.ballsInOver;
+  const matchTotalBalls = match.oversLimit * 6;
+  const ballsRemaining = Math.max(0, matchTotalBalls - totalBalls);
+  const targetScore = (match.innings[0]?.score || 0) + 1;
+  const rrr = getRequiredRunRate(targetScore, currentInning.score, ballsRemaining);
 
   return (
     <div className="min-h-screen bg-[#F3FAF4] pb-24">
@@ -68,9 +75,17 @@ export default function LiveViewerPage({ params }: { params: Promise<{ peerId: s
               {currentInning.overs}.{currentInning.ballsInOver} <span className="opacity-40 font-bold ml-1">({match.oversLimit}.0)</span>
             </p>
           </div>
-          <div className="bg-white/10 backdrop-blur-sm px-4 py-2 rounded-2xl border border-white/10">
-             <p className="text-[10px] font-black opacity-60 uppercase">Run Rate</p>
-             <p className="text-xl font-black">{getRunRate(currentInning.score, currentInning.overs * 6 + currentInning.ballsInOver)}</p>
+          <div className="flex gap-2">
+            <div className="bg-white/10 backdrop-blur-sm px-4 py-2 rounded-2xl border border-white/10">
+               <p className="text-[10px] font-black opacity-60 uppercase">Run Rate</p>
+               <p className="text-xl font-black">{getRunRate(currentInning.score, totalBalls)}</p>
+            </div>
+            {match.currentInning === 2 && (
+               <div className="bg-amber-500/20 backdrop-blur-sm px-4 py-2 rounded-2xl border border-amber-500/30">
+                  <p className="text-[10px] font-black text-amber-300 uppercase">Req RR</p>
+                  <p className="text-xl font-black text-amber-200">{rrr}</p>
+               </div>
+            )}
           </div>
         </div>
 
@@ -94,11 +109,12 @@ export default function LiveViewerPage({ params }: { params: Promise<{ peerId: s
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5 mb-6 bg-white/50 border shadow-sm p-1 rounded-2xl h-12 overflow-x-auto overflow-y-hidden scrollbar-hide">
+          <TabsList className="grid w-full grid-cols-6 mb-6 bg-white/50 border shadow-sm p-1 rounded-2xl h-12 overflow-x-auto overflow-y-hidden scrollbar-hide">
             <TabsTrigger value="score" className="rounded-xl font-bold text-[9px] uppercase">Score</TabsTrigger>
             <TabsTrigger value="card" className="rounded-xl font-bold text-[9px] uppercase">Card</TabsTrigger>
             <TabsTrigger value="partners" className="rounded-xl font-bold text-[9px] uppercase">Pairs</TabsTrigger>
             <TabsTrigger value="stats" className="rounded-xl font-bold text-[9px] uppercase">Stats</TabsTrigger>
+            <TabsTrigger value="timeline" className="rounded-xl font-bold text-[9px] uppercase">Story</TabsTrigger>
             <TabsTrigger value="info" className="rounded-xl font-bold text-[9px] uppercase">Info</TabsTrigger>
           </TabsList>
 
@@ -164,6 +180,10 @@ export default function LiveViewerPage({ params }: { params: Promise<{ peerId: s
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          <TabsContent value="timeline">
+            <MatchStory match={match} />
           </TabsContent>
 
           <TabsContent value="info">
