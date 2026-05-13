@@ -6,9 +6,9 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Match, Inning } from '@/types/cricket';
+import { Inning } from '@/types/cricket';
 import { getRunRate, getRequiredRunRate, getWinProbability, getComparativeManhattanData, getComparativeWormData } from '@/lib/match-utils';
-import { ChevronLeft, Share2, BarChart3, LineChart, Zap, Activity, Radio, Info } from 'lucide-react';
+import { ChevronLeft, Share2, BarChart3, LineChart, Zap, Activity, Radio, Swords } from 'lucide-react';
 import MatchScorecard from '@/components/scorecard/MatchScorecard';
 import PartnershipView from '@/components/scorecard/PartnershipView';
 import MatchStory from '@/components/scorecard/MatchStory';
@@ -46,8 +46,8 @@ export default function LiveViewerPage({ params }: { params: Promise<{ peerId: s
   return (
     <div className="min-h-screen bg-[#F3FAF4] pb-24">
       <header 
-        className="sticky top-0 z-40 text-primary-foreground p-3 sm:p-5 shadow-lg transition-colors duration-500"
-        style={{ backgroundColor: brandingColor }}
+        className={`sticky top-0 z-40 text-primary-foreground p-3 sm:p-5 shadow-lg transition-colors duration-500 ${match.isSuperOver ? 'animate-pulse' : ''}`}
+        style={{ backgroundColor: match.isSuperOver ? '#000' : brandingColor }}
       >
         <div className="flex items-center justify-between mb-4">
           <Button variant="ghost" size="icon" className="hover:bg-white/10" onClick={() => router.push('/')}>
@@ -58,7 +58,11 @@ export default function LiveViewerPage({ params }: { params: Promise<{ peerId: s
               <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
               <span className="text-[10px] font-black uppercase tracking-widest">Live Broadcast</span>
             </div>
-            <h2 className="text-[10px] font-black opacity-60 uppercase tracking-[0.2em]">{match.title}</h2>
+            <h2 className="text-[10px] font-black opacity-60 uppercase tracking-[0.2em] flex items-center justify-center gap-2">
+              {match.isSuperOver && <Swords className="w-3 h-3 text-amber-500" />}
+              {match.isSuperOver ? "⚔️ SUPER OVER" : match.title}
+              {match.isSuperOver && <Swords className="w-3 h-3 text-amber-500" />}
+            </h2>
           </div>
           <Button variant="ghost" size="icon" className="hover:bg-white/10">
             <Share2 className="w-5 h-5" />
@@ -89,7 +93,7 @@ export default function LiveViewerPage({ params }: { params: Promise<{ peerId: s
           </div>
         </div>
 
-        {match.currentInning === 2 && winProb !== null && (
+        {match.currentInning === 2 && winProb !== null && !match.isSuperOver && (
           <div className="mt-6 space-y-2">
             <div className="flex justify-between text-[10px] font-black uppercase tracking-tighter">
               <span>{currentInning.battingTeam} {Math.round(winProb)}%</span>

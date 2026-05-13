@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState, use } from 'react';
+import React, { useState, use, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,19 +18,19 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { saveMatchToLocalStorage, useLocalMatch } from '@/lib/storage';
-import { Match, Inning, Ball } from '@/types/cricket';
+import { Match, Inning } from '@/types/cricket';
 import { getRunRate, getRequiredRunRate, getWinProbability, getComparativeManhattanData, getComparativeWormData, calculatePlayerOfTheMatch } from '@/lib/match-utils';
-import { ChevronLeft, Share2, BarChart3, LineChart, Trophy, Zap, Activity, Target, Download, Users, Radio, Copy, CheckCircle2, TrendingUp } from 'lucide-react';
+import { ChevronLeft, Share2, BarChart3, LineChart, Trophy, Zap, Activity, Target, Download, Radio, Copy, Swords } from 'lucide-react';
 import ScoringInterface from '@/components/scoring/ScoringInterface';
 import MatchScorecard from '@/components/scorecard/MatchScorecard';
 import PartnershipView from '@/components/scorecard/PartnershipView';
 import MatchStory from '@/components/scorecard/MatchStory';
 import { useToast } from "@/hooks/use-toast";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from '@/components/ui/chart';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Line, LineChart as ReLineChart } from 'recharts';
 import { useUser } from '@/firebase';
 import { MatchSummaryCard } from '@/components/share/MatchSummaryCard';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useLiveSharing } from '@/hooks/use-live-sharing';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -46,6 +46,50 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
 
   const { data: match, loading } = useLocalMatch(resolvedParams.id);
   const { peerId, status, startSharing, stopSharing } = useLiveSharing(match);
+
+  const handleStartSuperOver = useCallback(() => {
+    if (!match) return;
+    
+    const superOverId = `so-${match.id}-${Date.now()}`;
+    
+    const createInning = (batting: string, bowling: string): Inning => ({
+      battingTeam: batting,
+      bowlingTeam: bowling,
+      score: 0,
+      wickets: 0,
+      overs: 0,
+      ballsInOver: 0,
+      extras: { wides: 0, noBalls: 0, byes: 0, legByes: 0, penalty: 0 },
+      balls: [],
+      batsmen: {},
+      bowlers: {},
+      fallOfWickets: []
+    });
+
+    // In a Super Over, the team that batted second in the match usually bats first
+    const teamBattedSecond = match.innings[1]!.battingTeam;
+    const teamBattedFirst = match.innings[0]!.battingTeam;
+
+    const superOverMatch: Match = {
+      ...match,
+      id: superOverId,
+      title: match.title,
+      isSuperOver: true,
+      parentMatchId: match.id,
+      oversLimit: 1,
+      status: 'live',
+      currentInning: 1,
+      innings: [createInning(teamBattedSecond, teamBattedFirst), null],
+      winner: undefined,
+      manOfTheMatch: undefined,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    saveMatchToLocalStorage(superOverMatch);
+    toast({ title: "Super Over Started", description: "A high-stakes 1-over tiebreaker has been created." });
+    router.push(`/match/${superOverId}`);
+  }, [match, router, toast]);
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-[#F3FAF4]">
@@ -145,16 +189,22 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
   return (
     <div className="min-h-screen bg-[#F3FAF4] pb-24">
       <header 
-        className="sticky top-0 z-40 text-primary-foreground p-3 sm:p-5 shadow-lg transition-colors duration-500"
-        style={{ backgroundColor: brandingColor }}
+        className={`sticky top-0 z-40 text-primary-foreground p-3 sm:p-5 shadow-lg transition-colors duration-500 ${match.isSuperOver ? 'animate-pulse' : ''}`}
+        style={{ backgroundColor: match.isSuperOver ? '#000' : brandingColor }}
       >
         <div className="flex items-center justify-between mb-4">
           <Button variant="ghost" size="icon" className="hover:bg-white/10" onClick={() => router.push('/')}>
             <ChevronLeft className="w-6 h-6" />
           </Button>
           <div className="text-center">
-            <h2 className="text-[10px] font-black opacity-60 uppercase tracking-[0.2em]">{match.isSuperOver ? "⚔️ SUPER OVER" : match.title}</h2>
-            <p className="text-xs font-bold bg-black/10 px-3 py-0.5 rounded-full mt-1 uppercase tracking-tighter">{match.format} • {match.oversLimit} OVERS</p>
+            <h2 className="text-[10px] font-black opacity-60 uppercase tracking-[0.2em] flex items-center justify-center gap-2">
+              {match.isSuperOver && <Swords className="w-3 h-3 text-amber-500" />}
+              {match.isSuperOver ? "⚔️ SUPER OVER" : match.title}
+              {match.isSuperOver && <Swords className="w-3 h-3 text-amber-500" />}
+            </h2>
+            <p className="text-xs font-bold bg-black/10 px-3 py-0.5 rounded-full mt-1 uppercase tracking-tighter">
+              {match.isSuperOver ? "Sudden Death Tiebreaker" : `${match.format} • ${match.oversLimit} OVERS`}
+            </p>
           </div>
           <div className="flex gap-2">
             <Button 
@@ -396,7 +446,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col sm:flex-row gap-3">
             <AlertDialogCancel className="rounded-2xl border-2 font-bold h-12 flex-1">Finish as Tie</AlertDialogCancel>
-            <AlertDialogAction onClick={() => router.push('/match/setup')} className="bg-primary text-white rounded-2xl font-black h-12 flex-1">Start Super Over</AlertDialogAction>
+            <AlertDialogAction onClick={handleStartSuperOver} className="bg-primary text-white rounded-2xl font-black h-12 flex-1">Start Super Over</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
