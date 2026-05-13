@@ -48,7 +48,7 @@ export default function LiveViewerPage({ params }: { params: Promise<{ peerId: s
     <AnimationWrapper match={match}>
       <div className="min-h-screen bg-[#F3FAF4] pb-24">
         <header 
-          className={`sticky top-0 z-40 text-primary-foreground p-3 sm:p-5 shadow-lg transition-colors duration-500 ${match.isSuperOver ? 'animate-pulse' : ''}`}
+          className={`sticky top-0 z-40 text-primary-foreground p-3 sm:p-5 shadow-lg transition-colors duration-500`}
           style={{ backgroundColor: match.isSuperOver ? '#000' : brandingColor }}
         >
           <div className="flex items-center justify-between mb-4">
@@ -57,7 +57,7 @@ export default function LiveViewerPage({ params }: { params: Promise<{ peerId: s
             </Button>
             <div className="text-center">
               <div className="flex items-center justify-center gap-1.5 bg-black/10 px-3 py-0.5 rounded-full mb-1">
-                <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+                <div className="w-1.5 h-1.5 bg-red-500 rounded-full" />
                 <span className="text-[10px] font-black uppercase tracking-widest">Live Broadcast</span>
               </div>
               <h2 className="text-[10px] font-black opacity-60 uppercase tracking-[0.2em] flex items-center justify-center gap-2">
@@ -110,7 +110,7 @@ export default function LiveViewerPage({ params }: { params: Promise<{ peerId: s
 
         <main className="max-w-4xl mx-auto w-full px-4 pt-6">
           <div className="mb-6 flex items-center gap-3 bg-primary/5 border-2 border-primary/10 p-4 rounded-3xl">
-             <Radio className="w-5 h-5 text-primary animate-pulse" />
+             <Radio className="w-5 h-5 text-primary" />
              <p className="text-xs font-bold text-primary uppercase">Receiving real-time updates from Scorer device</p>
           </div>
 

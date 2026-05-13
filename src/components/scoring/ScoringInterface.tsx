@@ -17,10 +17,9 @@ interface ScoringInterfaceProps {
 
 export default function ScoringInterface({ match, onUpdate }: ScoringInterfaceProps) {
   const currentInning = match.innings[match.currentInning - 1] as Inning;
-  const battingTeamPlayers = match.currentInning === 1 
-    ? (match.tossWinner === match.teamA.name ? (match.tossChoice === 'bat' ? match.teamA : match.teamB) : (match.tossChoice === 'bat' ? match.teamB : match.teamA))
-    : (match.tossWinner === match.teamA.name ? (match.tossChoice === 'bat' ? match.teamB : match.teamA) : (match.tossChoice === 'bat' ? match.teamA : match.teamB));
-
+  
+  // Simplified team identification for standard and Super Over matches
+  const battingTeamPlayers = currentInning.battingTeam === match.teamA.name ? match.teamA : match.teamB;
   const bowlingTeamPlayers = battingTeamPlayers.name === match.teamA.name ? match.teamB : match.teamA;
 
   const [strikerId, setStrikerId] = useState<string>('');

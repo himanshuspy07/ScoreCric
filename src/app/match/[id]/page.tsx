@@ -85,6 +85,8 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       manOfTheMatch: undefined,
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      tossWinner: teamBattedSecond,
+      tossChoice: 'bat'
     };
 
     saveMatchToLocalStorage(superOverMatch);
@@ -129,7 +131,8 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
     };
     
     const currentBattingTeam = updatedInning.battingTeam === match.teamA.name ? match.teamA : match.teamB;
-    const maxWickets = currentBattingTeam.players.length - 1;
+    // Super Over limit is 2 wickets (3 players)
+    const maxWickets = match.isSuperOver ? 2 : currentBattingTeam.players.length - 1;
     
     const oversFinished = updatedInning.overs >= match.oversLimit;
     const allOut = updatedInning.wickets >= maxWickets;
@@ -167,7 +170,10 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           updatedMatch.winner = updatedInning.bowlingTeam;
         } else {
           updatedMatch.winner = 'Tie';
-          setShowTieDialog(true);
+          // Only show tie dialog if not already in a super over
+          if (!match.isSuperOver) {
+            setShowTieDialog(true);
+          }
         }
         
         updatedMatch.manOfTheMatch = calculatePlayerOfTheMatch(updatedMatch);
@@ -191,7 +197,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
     <AnimationWrapper match={match}>
       <div className="min-h-screen bg-[#F3FAF4] pb-24">
         <header 
-          className={`sticky top-0 z-40 text-primary-foreground p-3 sm:p-5 shadow-lg transition-colors duration-500 ${match.isSuperOver ? 'animate-pulse' : ''}`}
+          className={`sticky top-0 z-40 text-primary-foreground p-3 sm:p-5 shadow-lg transition-colors duration-500`}
           style={{ backgroundColor: match.isSuperOver ? '#000' : brandingColor }}
         >
           <div className="flex items-center justify-between mb-4">
