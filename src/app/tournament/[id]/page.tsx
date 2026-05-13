@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useLocalTournament, useLocalMatches, saveTournamentToLocalStorage, saveMatchToLocalStorage } from '@/lib/storage';
 import { calculateTournamentStandings } from '@/lib/match-utils';
-import { ChevronLeft, Trophy, Star, ChevronRight, Plus, PlayCircle, Clock } from 'lucide-react';
+import { ChevronLeft, Trophy, Star, ChevronRight, Plus, PlayCircle, Clock, Zap, Target, Award, Flame, Swords } from 'lucide-react';
 import Link from 'next/link';
 import { Match, Inning, Fixture, Team } from '@/types/cricket';
 import { useUser } from '@/firebase';
@@ -32,29 +32,56 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
   // Safely get settings
   const tSettings = tournament.settings || { overs: 20, playersPerTeam: 11, matchesPerTeam: 1 };
 
-  // Derive Leaderboards
-  const playerStats: Record<string, { runs: number; wickets: number; team: string }> = {};
+  // Advanced Stats Calculation
+  const playerStats: Record<string, { runs: number; wickets: number; team: string; sixes: number; fours: number; balls: number }> = {};
+  const inningsPerformances: Array<{ name: string; runs: number; balls: number; team: string }> = [];
+  const bowlingSpells: Array<{ name: string; wickets: number; runsConceded: number; team: string }> = [];
+
   tournamentMatches.forEach(m => {
     m.innings.forEach(inn => {
       if (!inn) return;
       Object.values(inn.batsmen).forEach(b => {
-        if (!playerStats[b.name]) playerStats[b.name] = { runs: 0, wickets: 0, team: inn.battingTeam };
+        if (!playerStats[b.name]) {
+          playerStats[b.name] = { runs: 0, wickets: 0, team: inn.battingTeam, sixes: 0, fours: 0, balls: 0 };
+        }
         playerStats[b.name].runs += b.runs;
+        playerStats[b.name].sixes += (b.sixes || 0);
+        playerStats[b.name].fours += (b.fours || 0);
+        playerStats[b.name].balls += (b.balls || 0);
+        
+        if (b.balls > 0) {
+          inningsPerformances.push({ name: b.name, runs: b.runs, balls: b.balls, team: inn.battingTeam });
+        }
       });
       Object.values(inn.bowlers).forEach(bw => {
-        if (!playerStats[bw.name]) playerStats[bw.name] = { runs: 0, wickets: 0, team: inn.bowlingTeam };
+        if (!playerStats[bw.name]) {
+          playerStats[bw.name] = { runs: 0, wickets: 0, team: inn.bowlingTeam, sixes: 0, fours: 0, balls: 0 };
+        }
         playerStats[bw.name].wickets += bw.wickets;
+        
+        const balls = (bw.overs * 6) + bw.balls;
+        if (balls > 0) {
+          bowlingSpells.push({ name: bw.name, wickets: bw.wickets, runsConceded: bw.runsConceded, team: inn.bowlingTeam });
+        }
       });
     });
   });
 
   const topScorers = Object.entries(playerStats).sort((a, b) => b[1].runs - a[1].runs).slice(0, 5);
   const topWicketTakers = Object.entries(playerStats).sort((a, b) => b[1].wickets - a[1].wickets).slice(0, 5);
+  const topSixHitters = Object.entries(playerStats).sort((a, b) => b[1].sixes - a[1].sixes).slice(0, 5);
+  const topFourHitters = Object.entries(playerStats).sort((a, b) => b[1].fours - a[1].fours).slice(0, 5);
+  const highestInnings = [...inningsPerformances].sort((a, b) => b.runs - a.runs).slice(0, 5);
+  const bestSpells = [...bowlingSpells].sort((a, b) => b.wickets - a.wickets || a.runsConceded - b.runsConceded).slice(0, 5);
+  const topStrikeRates = Object.entries(playerStats)
+    .filter(([_, stats]) => stats.balls >= 10) // Min qualification
+    .map(([name, stats]) => ({ name, sr: parseFloat(((stats.runs / stats.balls) * 100).toFixed(2)), ...stats }))
+    .sort((a, b) => b.sr - a.sr)
+    .slice(0, 5);
 
   const startFixture = (fixture: Fixture) => {
     if (!user) return;
     
-    // Find team branding from tournament
     const teamAData = tournament.teams.find((t: Team | string) => (typeof t === 'string' ? t : t.name) === fixture.teamA) as Team;
     const teamBData = tournament.teams.find((t: Team | string) => (typeof t === 'string' ? t : t.name) === fixture.teamB) as Team;
 
@@ -97,7 +124,6 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
       tournamentId: tournament.id
     };
 
-    // Update fixture in tournament
     const updatedFixtures = (tournament.fixtures || []).map(f => 
       f.id === fixture.id ? { ...f, matchId: id, status: 'live' as any } : f
     );
@@ -225,16 +251,17 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
           </TabsContent>
 
           <TabsContent value="stats" className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-               <Card className="border-2 rounded-[2rem] overflow-hidden">
-                 <CardHeader className="bg-amber-500 text-white"><CardTitle className="text-lg font-black flex items-center gap-2"><Star className="w-5 h-5" /> Orange Cap</CardTitle></CardHeader>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+               {/* 1. Orange Cap (Most Runs) */}
+               <Card className="border-2 rounded-[1.5rem] overflow-hidden shadow-sm">
+                 <CardHeader className="bg-amber-500 text-white p-4"><CardTitle className="text-sm font-black flex items-center gap-2"><Star className="w-4 h-4" /> Orange Cap</CardTitle></CardHeader>
                  <CardContent className="p-0">
                     <Table>
                       <TableBody>
                         {topScorers.map(([name, stats], i) => (
                           <TableRow key={name}>
-                            <TableCell className="font-bold text-xs"><span className="opacity-40 mr-2">{i+1}</span>{name}</TableCell>
-                            <TableCell className="text-right font-black">{stats.runs} <span className="text-[10px] opacity-40">RUNS</span></TableCell>
+                            <TableCell className="p-3 font-bold text-xs"><span className="opacity-40 mr-2">{i+1}</span>{name}</TableCell>
+                            <TableCell className="p-3 text-right font-black">{stats.runs} <span className="text-[10px] opacity-40">R</span></TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -242,15 +269,87 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
                  </CardContent>
                </Card>
 
-               <Card className="border-2 rounded-[2rem] overflow-hidden">
-                 <CardHeader className="bg-primary text-white"><CardTitle className="text-lg font-black flex items-center gap-2"><Trophy className="w-5 h-5" /> Purple Cap</CardTitle></CardHeader>
+               {/* 2. Purple Cap (Most Wickets) */}
+               <Card className="border-2 rounded-[1.5rem] overflow-hidden shadow-sm">
+                 <CardHeader className="bg-primary text-white p-4"><CardTitle className="text-sm font-black flex items-center gap-2"><Trophy className="w-4 h-4" /> Purple Cap</CardTitle></CardHeader>
                  <CardContent className="p-0">
                     <Table>
                       <TableBody>
                         {topWicketTakers.map(([name, stats], i) => (
                           <TableRow key={name}>
-                            <TableCell className="font-bold text-xs"><span className="opacity-40 mr-2">{i+1}</span>{name}</TableCell>
-                            <TableCell className="text-right font-black">{stats.wickets} <span className="text-[10px] opacity-40">WICKETS</span></TableCell>
+                            <TableCell className="p-3 font-bold text-xs"><span className="opacity-40 mr-2">{i+1}</span>{name}</TableCell>
+                            <TableCell className="p-3 text-right font-black">{stats.wickets} <span className="text-[10px] opacity-40">W</span></TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                 </CardContent>
+               </Card>
+
+               {/* 3. Highest Innings Score */}
+               <Card className="border-2 rounded-[1.5rem] overflow-hidden shadow-sm">
+                 <CardHeader className="bg-rose-600 text-white p-4"><CardTitle className="text-sm font-black flex items-center gap-2"><Flame className="w-4 h-4" /> Highest Innings</CardTitle></CardHeader>
+                 <CardContent className="p-0">
+                    <Table>
+                      <TableBody>
+                        {highestInnings.map((p, i) => (
+                          <TableRow key={i}>
+                            <TableCell className="p-3 font-bold text-xs"><span className="opacity-40 mr-2">{i+1}</span>{p.name}</TableCell>
+                            <TableCell className="p-3 text-right font-black">{p.runs} <span className="text-[10px] opacity-40">({p.balls})</span></TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                 </CardContent>
+               </Card>
+
+               {/* 4. Best Bowling Spells */}
+               <Card className="border-2 rounded-[1.5rem] overflow-hidden shadow-sm">
+                 <CardHeader className="bg-indigo-600 text-white p-4"><CardTitle className="text-sm font-black flex items-center gap-2"><Target className="w-4 h-4" /> Top Spells</CardTitle></CardHeader>
+                 <CardContent className="p-0">
+                    <Table>
+                      <TableBody>
+                        {bestSpells.map((s, i) => (
+                          <TableRow key={i}>
+                            <TableCell className="p-3 font-bold text-xs"><span className="opacity-40 mr-2">{i+1}</span>{s.name}</TableCell>
+                            <TableCell className="p-3 text-right font-black">{s.wickets}/{s.runsConceded}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                 </CardContent>
+               </Card>
+
+               {/* 5. Strike Rate Kings */}
+               <Card className="border-2 rounded-[1.5rem] overflow-hidden shadow-sm">
+                 <CardHeader className="bg-emerald-600 text-white p-4"><CardTitle className="text-sm font-black flex items-center gap-2"><Zap className="w-4 h-4" /> SR Kings</CardTitle></CardHeader>
+                 <CardContent className="p-0">
+                    <Table>
+                      <TableBody>
+                        {topStrikeRates.map((p, i) => (
+                          <TableRow key={p.name}>
+                            <TableCell className="p-3 font-bold text-xs"><span className="opacity-40 mr-2">{i+1}</span>{p.name}</TableCell>
+                            <TableCell className="p-3 text-right font-black">{p.sr}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                 </CardContent>
+               </Card>
+
+               {/* 6. Boundary Kings (Sixes/Fours) */}
+               <Card className="border-2 rounded-[1.5rem] overflow-hidden shadow-sm">
+                 <CardHeader className="bg-slate-800 text-white p-4"><CardTitle className="text-sm font-black flex items-center gap-2"><Award className="w-4 h-4" /> Boundary Kings</CardTitle></CardHeader>
+                 <CardContent className="p-0">
+                    <Table>
+                      <TableBody>
+                        {topSixHitters.map(([name, stats], i) => (
+                          <TableRow key={name}>
+                            <TableCell className="p-3 font-bold text-xs"><span className="opacity-40 mr-2">{i+1}</span>{name}</TableCell>
+                            <TableCell className="p-3 text-right font-black">
+                               <span className="text-amber-500 mr-2">{stats.sixes} <span className="text-[8px] uppercase">6s</span></span>
+                               <span className="text-blue-500">{stats.fours} <span className="text-[8px] uppercase">4s</span></span>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
