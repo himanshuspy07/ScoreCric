@@ -378,6 +378,10 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
 
       <Dialog open={showSummary} onOpenChange={setShowSummary}>
         <DialogContent className="max-w-xl w-[95%] rounded-[2.5rem] max-h-[90dvh] overflow-y-auto">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Match Summary</DialogTitle>
+            <DialogDescription>A detailed summary of the match results, top performers, and statistics.</DialogDescription>
+          </DialogHeader>
           <MatchSummaryCard match={match} />
         </DialogContent>
       </Dialog>
