@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,8 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Trophy, Plus, Trash2, ChevronRight, ChevronLeft, Settings, Users, Activity, Palette } from 'lucide-react';
-import { saveTournamentToLocalStorage } from '@/lib/storage';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Trophy, Plus, Trash2, ChevronRight, ChevronLeft, Settings, Users, Activity, Palette, History } from 'lucide-react';
+import { saveTournamentToLocalStorage, useLocalMatches } from '@/lib/storage';
 import { generateTournamentFixtures } from '@/lib/match-utils';
 import { useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -43,6 +44,18 @@ export default function TournamentSetup() {
     matchesPerTeam: 1
   });
 
+  const { data: pastMatches } = useLocalMatches();
+
+  const pastTeams = useMemo(() => {
+    if (!pastMatches) return [];
+    const teamsMap = new Map<string, { players: string[], color: string }>();
+    pastMatches.forEach(m => {
+      if (m.teamA?.name) teamsMap.set(m.teamA.name, { players: m.teamA.players, color: m.teamA.color || '' });
+      if (m.teamB?.name) teamsMap.set(m.teamB.name, { players: m.teamB.players, color: m.teamB.color || '' });
+    });
+    return Array.from(teamsMap.entries()).map(([name, data]) => ({ name, ...data }));
+  }, [pastMatches]);
+
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
@@ -69,6 +82,16 @@ export default function TournamentSetup() {
     setTeams(newTeams);
   };
 
+  const handleImportPlayers = (teamIdx: number, importedPlayers: string[]) => {
+    const newTeams = [...teams];
+    const count = settings.playersPerTeam;
+    // Pad or truncate to match tournament settings
+    const players = Array.from({ length: count }, (_, i) => importedPlayers[i] || `${newTeams[teamIdx].name || 'Team'} Player ${i + 1}`);
+    newTeams[teamIdx].players = players;
+    setTeams(newTeams);
+    toast({ title: "Squad Imported", description: `Loaded ${importedPlayers.length} players from history.` });
+  };
+
   const handleNext = () => {
     if (step === 1 && !name) {
       toast({ variant: "destructive", title: "Required", description: "Tournament name is mandatory." });
@@ -79,7 +102,6 @@ export default function TournamentSetup() {
       return;
     }
     if (step === 3) {
-      // Ensure all players have names or defaults
       const validatedTeams = teams.map(t => ({
         ...t,
         players: Array.from({ length: settings.playersPerTeam }, (_, i) => t.players[i] || `${t.name} Player ${i + 1}`)
@@ -225,9 +247,29 @@ export default function TournamentSetup() {
               </TabsList>
               {teams.map((team, teamIdx) => (
                 <TabsContent key={team.name} value={team.name} className="space-y-6">
-                  <div className="flex justify-between items-center bg-muted/30 p-4 rounded-2xl">
-                    <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">{team.name} Official Roster</span>
-                    <span className="text-[10px] font-bold text-primary bg-primary/10 px-3 py-1 rounded-full">{settings.playersPerTeam} Slots</span>
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-muted/30 p-4 rounded-2xl">
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">{team.name} Official Roster</span>
+                      <p className="text-[10px] font-bold text-primary opacity-60">{settings.playersPerTeam} Slots Required</p>
+                    </div>
+                    {pastTeams.length > 0 && (
+                      <div className="w-full sm:w-auto flex items-center gap-2">
+                        <History className="w-4 h-4 text-muted-foreground" />
+                        <Select onValueChange={(val) => {
+                          const selected = pastTeams.find(t => t.name === val);
+                          if (selected) handleImportPlayers(teamIdx, selected.players);
+                        }}>
+                          <SelectTrigger className="w-full sm:w-[180px] h-10 rounded-xl font-bold border-2">
+                            <SelectValue placeholder="Import Recent" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                            {pastTeams.map(t => (
+                              <SelectItem key={t.name} value={t.name} className="font-bold">{t.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </div>
                   <ScrollArea className="h-[450px] pr-6 rounded-2xl border-2 p-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -298,3 +340,4 @@ export default function TournamentSetup() {
     </div>
   );
 }
+
