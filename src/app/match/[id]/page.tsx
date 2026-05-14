@@ -34,6 +34,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { useLiveSharing } from '@/hooks/use-live-sharing';
 import { QRCodeSVG } from 'qrcode.react';
 import { AnimationWrapper } from '@/components/AnimationWrapper';
+import { ScorePiP } from '@/components/scorecard/ScorePiP';
 
 export default function MatchPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -67,7 +68,6 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       fallOfWickets: []
     });
 
-    // In a Super Over, the team that batted second in the match usually bats first
     const teamBattedSecond = match.innings[1]!.battingTeam;
     const teamBattedFirst = match.innings[0]!.battingTeam;
 
@@ -131,7 +131,6 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
     };
     
     const currentBattingTeam = updatedInning.battingTeam === match.teamA.name ? match.teamA : match.teamB;
-    // Super Over limit is 2 wickets (3 players)
     const maxWickets = match.isSuperOver ? 2 : currentBattingTeam.players.length - 1;
     
     const oversFinished = updatedInning.overs >= match.oversLimit;
@@ -170,7 +169,6 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           updatedMatch.winner = updatedInning.bowlingTeam;
         } else {
           updatedMatch.winner = 'Tie';
-          // Only show tie dialog if not already in a super over
           if (!match.isSuperOver) {
             setShowTieDialog(true);
           }
@@ -215,6 +213,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
               </p>
             </div>
             <div className="flex gap-2">
+              <ScorePiP match={match} />
               <Button 
                 variant="ghost" 
                 size="icon" 

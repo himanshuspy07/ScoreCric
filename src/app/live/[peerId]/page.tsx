@@ -16,6 +16,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Line, LineChart as ReLineChart } from 'recharts';
 import { useLiveViewer } from '@/hooks/use-live-sharing';
 import { AnimationWrapper } from '@/components/AnimationWrapper';
+import { ScorePiP } from '@/components/scorecard/ScorePiP';
 
 export default function LiveViewerPage({ params }: { params: Promise<{ peerId: string }> }) {
   const resolvedParams = use(params);
@@ -66,9 +67,15 @@ export default function LiveViewerPage({ params }: { params: Promise<{ peerId: s
                 {match.isSuperOver && <Swords className="w-3 h-3 text-amber-500" />}
               </h2>
             </div>
-            <Button variant="ghost" size="icon" className="hover:bg-white/10">
-              <Share2 className="w-5 h-5" />
-            </Button>
+            <div className="flex gap-2">
+              <ScorePiP match={match} />
+              <Button variant="ghost" size="icon" className="hover:bg-white/10" onClick={() => {
+                const shareText = `${match.teamA.name} vs ${match.teamB.name}\nScore: ${currentInning.score}/${currentInning.wickets}`;
+                if (navigator.share) navigator.share({ title: 'Live Cricket Update', text: shareText, url: window.location.href });
+              }}>
+                <Share2 className="w-5 h-5" />
+              </Button>
+            </div>
           </div>
 
           <div className="flex justify-between items-end">
