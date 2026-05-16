@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useState, use, useCallback } from 'react';
@@ -20,7 +19,7 @@ import {
 import { saveMatchToLocalStorage, useLocalMatch } from '@/lib/storage';
 import { Match, Inning } from '@/types/cricket';
 import { getRunRate, getRequiredRunRate, getWinProbability, getComparativeManhattanData, getComparativeWormData, calculatePlayerOfTheMatch } from '@/lib/match-utils';
-import { ChevronLeft, Share2, BarChart3, LineChart, Trophy, Zap, Activity, Target, Download, Radio, Copy, Swords } from 'lucide-react';
+import { ChevronLeft, Share2, BarChart3, LineChart, Trophy, Zap, Activity, Target, Download, Radio, Copy, Swords, MonitorPlay } from 'lucide-react';
 import ScoringInterface from '@/components/scoring/ScoringInterface';
 import MatchScorecard from '@/components/scorecard/MatchScorecard';
 import PartnershipView from '@/components/scorecard/PartnershipView';
@@ -35,6 +34,7 @@ import { useLiveSharing } from '@/hooks/use-live-sharing';
 import { QRCodeSVG } from 'qrcode.react';
 import { AnimationWrapper } from '@/components/AnimationWrapper';
 import { ScorePiP } from '@/components/scorecard/ScorePiP';
+import Link from 'next/link';
 
 export default function MatchPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -437,10 +437,21 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                       <Button variant="outline" size="icon" className="h-12 w-12 rounded-xl" onClick={handleCopyPeerId}><Copy className="w-4 h-4" /></Button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 bg-green-50 text-green-700 p-4 rounded-2xl border border-green-100">
-                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                    <span className="text-xs font-black uppercase tracking-widest">Live Broadcasting Enabled</span>
+                  
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-2 bg-green-50 text-green-700 p-4 rounded-2xl border border-green-100">
+                      <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                      <span className="text-xs font-black uppercase tracking-widest">Live Broadcasting Enabled</span>
+                    </div>
+                    {peerId && (
+                      <Button asChild variant="outline" className="h-12 rounded-2xl font-bold gap-2 border-2">
+                        <Link href={`/live/${peerId}/overlay`} target="_blank">
+                           <MonitorPlay className="w-4 h-4" /> Open Streaming Overlay
+                        </Link>
+                      </Button>
+                    )}
                   </div>
+                  
                   <Button variant="destructive" onClick={stopSharing} className="w-full h-12 rounded-2xl font-black">End Live Stream</Button>
                 </div>
               )}
@@ -450,9 +461,9 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
 
         <Dialog open={showSummary} onOpenChange={setShowSummary}>
           <DialogContent className="max-w-xl w-[95%] rounded-[2.5rem] max-h-[90dvh] overflow-y-auto">
-            <DialogHeader className="sr-only">
-              <DialogTitle>Match Summary</DialogTitle>
-              <DialogDescription>A detailed summary of the match results, top performers, and statistics.</DialogDescription>
+            <DialogHeader>
+              <DialogTitle className="sr-only">Match Summary</DialogTitle>
+              <DialogDescription className="sr-only">A detailed summary of the match results, top performers, and statistics.</DialogDescription>
             </DialogHeader>
             <MatchSummaryCard match={match} />
           </DialogContent>
