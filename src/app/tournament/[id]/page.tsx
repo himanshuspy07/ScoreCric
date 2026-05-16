@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { use, useState, useMemo } from 'react';
@@ -7,20 +6,30 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { useLocalTournament, useLocalMatches, saveTournamentToLocalStorage, saveMatchToLocalStorage } from '@/lib/storage';
 import { calculateTournamentStandings } from '@/lib/match-utils';
-import { ChevronLeft, Trophy, Star, ChevronRight, Plus, PlayCircle, Clock, Zap, Target, Award, Flame, Calendar, LayoutGrid } from 'lucide-react';
+import { ChevronLeft, Trophy, Star, ChevronRight, Plus, Calendar, Activity, Award } from 'lucide-react';
 import Link from 'next/link';
 import { Match, Inning, Fixture, Team } from '@/types/cricket';
 import { useUser } from '@/firebase';
+import { useToast } from '@/hooks/use-toast';
 
 export default function TournamentPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const router = useRouter();
   const { user } = useUser();
+  const { toast } = useToast();
   const { data: tournament, loading: tLoading } = useLocalTournament(resolvedParams.id);
   const { data: allMatches, loading: mLoading } = useLocalMatches();
   const [activeTab, setActiveTab] = useState('standings');
+  
+  // Custom Fixture State
+  const [isAddFixtureOpen, setIsAddFixtureOpen] = useState(false);
+  const [customTeamA, setCustomTeamA] = useState('');
+  const [customTeamB, setCustomTeamB] = useState('');
 
   // Memoize tournament-specific matches and names
   const tournamentMatches = useMemo(() => 
@@ -68,13 +77,6 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
     return {
       topScorers: entries.sort((a, b) => b[1].runs - a[1].runs).slice(0, 5),
       topWicketTakers: entries.sort((a, b) => b[1].wickets - a[1].wickets).slice(0, 5),
-      highestInnings: innings.sort((a, b) => b.runs - a.runs).slice(0, 5),
-      bestSpells: spells.sort((a, b) => b.wickets - a.wickets || a.runsConceded - b.runsConceded).slice(0, 5),
-      topStrikeRates: entries
-        .filter(([_, s]) => s.balls >= 10)
-        .map(([id, s]) => ({ id, team: s.team, name: s.name, sr: parseFloat(((s.runs / s.balls) * 100).toFixed(2)), ...s }))
-        .sort((a, b) => b.sr - a.sr)
-        .slice(0, 5),
       boundaryKings: entries
         .sort((a, b) => (b[1].sixes * 6 + b[1].fours * 4) - (a[1].sixes * 6 + a[1].fours * 4))
         .slice(0, 5)
@@ -86,8 +88,40 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
 
   const tSettings = tournament.settings || { overs: 20, playersPerTeam: 11, matchesPerTeam: 1 };
 
+  const addCustomFixture = () => {
+    if (!customTeamA || !customTeamB) {
+      toast({ variant: "destructive", title: "Missing Teams", description: "Select both teams for the match." });
+      return;
+    }
+    if (customTeamA === customTeamB) {
+      toast({ variant: "destructive", title: "Invalid Selection", description: "Teams must be different." });
+      return;
+    }
+
+    const newFixture: Fixture = {
+      id: Math.random().toString(36).substr(2, 9),
+      teamA: customTeamA,
+      teamB: customTeamB,
+      status: 'pending'
+    };
+
+    const updatedTournament = {
+      ...tournament,
+      fixtures: [...(tournament.fixtures || []), newFixture]
+    };
+
+    saveTournamentToLocalStorage(updatedTournament);
+    setIsAddFixtureOpen(false);
+    setCustomTeamA('');
+    setCustomTeamB('');
+    toast({ title: "Match Added", description: `Custom match between ${customTeamA} and ${customTeamB} registered.` });
+  };
+
   const startFixture = (fixture: Fixture) => {
-    if (!user) return;
+    if (!user) {
+      toast({ title: "Identity Required", description: "Please sign in to start matches." });
+      return;
+    }
     const teamAData = tournament.teams.find((t: Team | string) => (typeof t === 'string' ? t : t.name) === fixture.teamA) as Team;
     const teamBData = tournament.teams.find((t: Team | string) => (typeof t === 'string' ? t : t.name) === fixture.teamB) as Team;
 
@@ -162,18 +196,35 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
             </Card>
           </TabsContent>
 
-          <TabsContent value="fixtures">
+          <TabsContent value="fixtures" className="space-y-6">
+             <div className="flex justify-between items-center px-2">
+                <h3 className="text-lg font-black text-primary uppercase tracking-tighter">Tournament Fixtures</h3>
+                <Button onClick={() => setIsAddFixtureOpen(true)} size="sm" className="rounded-full gap-2 font-bold shadow-lg">
+                   <Plus className="w-4 h-4" /> Add Match
+                </Button>
+             </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {(tournament.fixtures || []).map((f) => (
-                   <Card key={f.id} className="border-2 rounded-2xl p-5 flex justify-between items-center bg-white">
+                   <Card key={f.id} className="border-2 rounded-2xl p-5 flex justify-between items-center bg-white shadow-sm hover:border-primary/20 transition-colors">
                       <div>
+                        <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">{f.matchId ? 'Ongoing / Played' : 'Upcoming'}</p>
                         <h4 className="font-black text-lg text-primary">{f.teamA} v {f.teamB}</h4>
                       </div>
-                      {f.matchId ? <Button variant="outline" asChild><Link href={`/match/${f.matchId}`}>View</Link></Button> : <Button onClick={() => startFixture(f)}>Start</Button>}
+                      {f.matchId ? (
+                        <Button variant="outline" asChild className="rounded-xl font-bold">
+                           <Link href={`/match/${f.matchId}`}>View Card</Link>
+                        </Button>
+                      ) : (
+                        <Button onClick={() => startFixture(f)} className="rounded-xl font-bold px-6">Start</Button>
+                      )}
                    </Card>
                 ))}
                 {(tournament.fixtures || []).length === 0 && (
-                   <div className="col-span-full py-12 text-center text-muted-foreground font-bold">No fixtures generated.</div>
+                   <div className="col-span-full py-20 border-4 border-dashed rounded-[2.5rem] text-center text-muted-foreground font-bold flex flex-col items-center gap-3">
+                      <Activity className="w-10 h-10 opacity-20" />
+                      <p>No fixtures found. Generate or add a match.</p>
+                      <Button onClick={() => setIsAddFixtureOpen(true)} variant="outline" className="mt-2 rounded-full font-bold">Add Custom Match</Button>
+                   </div>
                 )}
              </div>
           </TabsContent>
@@ -181,14 +232,14 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
           <TabsContent value="matches">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {tournamentMatches.length === 0 ? (
-                  <Card className="col-span-full border-dashed border-4 py-20 text-center flex flex-col items-center gap-4 bg-transparent rounded-3xl">
+                  <Card className="col-span-full border-dashed border-4 py-20 text-center flex flex-col items-center gap-4 bg-transparent rounded-3xl opacity-40">
                     <Calendar className="w-12 h-12 text-muted-foreground/30" />
-                    <p className="text-lg font-bold text-muted-foreground">No matches played yet.</p>
+                    <p className="text-lg font-bold text-muted-foreground">No matches recorded in this league.</p>
                   </Card>
                 ) : (
                   tournamentMatches.map((match) => (
                     <Link key={match.id} href={`/match/${match.id}`}>
-                      <Card className="hover:shadow-xl transition-all border-2 rounded-3xl overflow-hidden bg-white">
+                      <Card className="hover:shadow-xl transition-all border-2 rounded-3xl overflow-hidden bg-white group">
                         <CardContent className="p-6">
                           <div className="flex justify-between items-start mb-4">
                             <div>
@@ -205,7 +256,7 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
                           )}
                           <div className="flex items-center justify-between pt-4 border-t">
                             <p className="text-[10px] font-black uppercase tracking-widest text-secondary">{match.status === 'completed' ? match.winner + ' Won' : 'LIVE NOW'}</p>
-                            <ChevronRight className="w-4 h-4 text-primary opacity-20" />
+                            <ChevronRight className="w-4 h-4 text-primary opacity-20 group-hover:opacity-100 transition-opacity" />
                           </div>
                         </CardContent>
                       </Card>
@@ -217,12 +268,12 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
 
           <TabsContent value="stats" className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-               <Card className="border-2 rounded-[1.5rem] overflow-hidden">
+               <Card className="border-2 rounded-[1.5rem] overflow-hidden shadow-sm">
                  <CardHeader className="bg-amber-500 text-white p-4"><CardTitle className="text-sm font-black flex items-center gap-2"><Star className="w-4 h-4" /> Orange Cap</CardTitle></CardHeader>
                  <CardContent className="p-0">
                     <Table>
                       <TableBody>
-                        {playerStats.topScorers.map(([id, s], i) => (
+                        {playerStats.topScorers.map(([id, s]) => (
                           <TableRow key={id}>
                             <TableCell className="p-3">
                               <p className="font-black text-sm">{s.name}</p>
@@ -231,16 +282,18 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
                             <TableCell className="p-3 text-right font-black text-lg">{s.runs}</TableCell>
                           </TableRow>
                         ))}
+                        {playerStats.topScorers.length === 0 && <TableRow><TableCell className="text-center py-8 text-muted-foreground opacity-40 font-bold">No Data</TableCell></TableRow>}
                       </TableBody>
                     </Table>
                  </CardContent>
                </Card>
-               <Card className="border-2 rounded-[1.5rem] overflow-hidden">
+
+               <Card className="border-2 rounded-[1.5rem] overflow-hidden shadow-sm">
                  <CardHeader className="bg-primary text-white p-4"><CardTitle className="text-sm font-black flex items-center gap-2"><Trophy className="w-4 h-4" /> Purple Cap</CardTitle></CardHeader>
                  <CardContent className="p-0">
                     <Table>
                       <TableBody>
-                        {playerStats.topWicketTakers.map(([id, s], i) => (
+                        {playerStats.topWicketTakers.map(([id, s]) => (
                           <TableRow key={id}>
                             <TableCell className="p-3">
                               <p className="font-black text-sm">{s.name}</p>
@@ -249,11 +302,13 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
                             <TableCell className="p-3 text-right font-black text-lg">{s.wickets}</TableCell>
                           </TableRow>
                         ))}
+                        {playerStats.topWicketTakers.length === 0 && <TableRow><TableCell className="text-center py-8 text-muted-foreground opacity-40 font-bold">No Data</TableCell></TableRow>}
                       </TableBody>
                     </Table>
                  </CardContent>
                </Card>
-               <Card className="border-2 rounded-[1.5rem] overflow-hidden">
+
+               <Card className="border-2 rounded-[1.5rem] overflow-hidden shadow-sm">
                  <CardHeader className="bg-slate-800 text-white p-4"><CardTitle className="text-sm font-black flex items-center gap-2"><Award className="w-4 h-4" /> Boundary Kings</CardTitle></CardHeader>
                  <CardContent className="p-0">
                     <Table>
@@ -265,10 +320,11 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
                               <p className="text-[10px] font-bold text-muted-foreground uppercase">{s.team}</p>
                             </TableCell>
                             <TableCell className="p-3 text-right font-black text-sm">
-                              {s.sixes} <span className="text-[10px] text-muted-foreground">6s</span> / {s.fours} <span className="text-[10px] text-muted-foreground">4s</span>
+                              {s.sixes} <span className="text-[10px] text-muted-foreground font-bold">6s</span> / {s.fours} <span className="text-[10px] text-muted-foreground font-bold">4s</span>
                             </TableCell>
                           </TableRow>
                         ))}
+                        {playerStats.boundaryKings.length === 0 && <TableRow><TableCell className="text-center py-8 text-muted-foreground opacity-40 font-bold">No Data</TableCell></TableRow>}
                       </TableBody>
                     </Table>
                  </CardContent>
@@ -277,6 +333,47 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
           </TabsContent>
         </Tabs>
       </main>
+
+      <Dialog open={isAddFixtureOpen} onOpenChange={setIsAddFixtureOpen}>
+        <DialogContent className="max-w-md w-[95%] rounded-[2.5rem]">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black text-primary">Add Custom Match</DialogTitle>
+            <DialogDescription className="text-xs font-bold uppercase tracking-widest">Select teams for the new fixture</DialogDescription>
+          </DialogHeader>
+          <div className="py-6 space-y-6">
+            <div className="space-y-3">
+               <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Team A (Home)</Label>
+               <Select value={customTeamA} onValueChange={setCustomTeamA}>
+                 <SelectTrigger className="h-14 rounded-2xl border-2 font-bold text-lg">
+                   <SelectValue placeholder="Select Team A" />
+                 </SelectTrigger>
+                 <SelectContent className="rounded-2xl">
+                    {teamNames.map(name => (
+                      <SelectItem key={name} value={name} className="font-bold">{name}</SelectItem>
+                    ))}
+                 </SelectContent>
+               </Select>
+            </div>
+            <div className="space-y-3">
+               <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Team B (Away)</Label>
+               <Select value={customTeamB} onValueChange={setCustomTeamB}>
+                 <SelectTrigger className="h-14 rounded-2xl border-2 font-bold text-lg">
+                   <SelectValue placeholder="Select Team B" />
+                 </SelectTrigger>
+                 <SelectContent className="rounded-2xl">
+                    {teamNames.map(name => (
+                      <SelectItem key={name} value={name} className="font-bold" disabled={name === customTeamA}>{name}</SelectItem>
+                    ))}
+                 </SelectContent>
+               </Select>
+            </div>
+          </div>
+          <DialogFooter className="gap-3">
+             <Button variant="outline" onClick={() => setIsAddFixtureOpen(false)} className="h-12 rounded-xl font-bold flex-1">Cancel</Button>
+             <Button onClick={addCustomFixture} className="h-12 rounded-xl font-black flex-1">Add to Fixtures</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
