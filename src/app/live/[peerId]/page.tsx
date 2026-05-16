@@ -35,6 +35,18 @@ export default function LiveViewerPage({ params }: { params: Promise<{ peerId: s
   );
 
   const currentInning = match.innings[match.currentInning - 1] as Inning;
+
+  // Defensive check for transition states
+  if (!currentInning) return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#F3FAF4] p-6 text-center space-y-4">
+      <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="space-y-1">
+        <h2 className="text-xl font-black text-primary uppercase tracking-tighter">Syncing Game Data</h2>
+        <p className="text-xs font-bold text-muted-foreground uppercase opacity-40">Loading current inning state...</p>
+      </div>
+    </div>
+  );
+
   const winProb = getWinProbability(match);
   const battingTeamObj = currentInning.battingTeam === match.teamA.name ? match.teamA : match.teamB;
   const brandingColor = battingTeamObj.color || '#2C5A37';

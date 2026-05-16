@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useState, use, useCallback } from 'react';
@@ -101,8 +102,18 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
   );
 
   const currentInning = match.innings[match.currentInning - 1] as Inning;
-  const winProb = getWinProbability(match);
+  
+  // Defensive check for inning transitions
+  if (!currentInning) return (
+    <div className="min-h-screen flex items-center justify-center bg-[#F3FAF4]">
+       <div className="text-center space-y-4">
+         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+         <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Transitioning Inning...</p>
+       </div>
+    </div>
+  );
 
+  const winProb = getWinProbability(match);
   const battingTeamObj = currentInning.battingTeam === match.teamA.name ? match.teamA : match.teamB;
   const brandingColor = battingTeamObj.color || '#2C5A37';
 
@@ -118,11 +129,13 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
   const handleScoreUpdate = (updatedInning: Inning) => {
     if (user && user.uid !== match.ownerId) return;
 
+    // Use a fresh array copy to prevent indexing gaps during transitions
+    const updatedInnings = [...match.innings];
+    updatedInnings[match.currentInning - 1] = updatedInning;
+
     const updatedMatch: Match = {
       ...match,
-      innings: match.innings.map((inn, idx) => 
-        idx === match.currentInning - 1 ? updatedInning : inn
-      ),
+      innings: updatedInnings,
       updatedAt: Date.now()
     };
     
@@ -150,7 +163,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           fallOfWickets: []
         };
         updatedMatch.currentInning = 2;
-        updatedMatch.innings.push(nextInning);
+        updatedMatch.innings[1] = nextInning; // Replace correct placeholder slot
         toast({ title: "Inning Finished", description: "Start second inning scoring." });
       } else if (match.currentInning === 3) {
         const nextInning: Inning = {
@@ -167,14 +180,14 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           fallOfWickets: []
         };
         updatedMatch.currentInning = 4;
-        updatedMatch.innings.push(nextInning);
+        updatedMatch.innings[3] = nextInning; // Set correct slot for super over chase
         toast({ title: "Super Over Halfway", description: "Final chase starts now." });
       } else {
         updatedMatch.status = 'completed';
         const finalInningIdx = match.currentInning - 1;
         const opponentInningIdx = match.currentInning - 2;
         
-        const score1 = match.innings[opponentInningIdx].score;
+        const score1 = match.innings[opponentInningIdx]?.score || 0;
         const score2 = updatedInning.score;
         
         if (score2 > score1) {

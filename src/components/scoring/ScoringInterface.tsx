@@ -19,6 +19,9 @@ interface ScoringInterfaceProps {
 export default function ScoringInterface({ match, onUpdate }: ScoringInterfaceProps) {
   const currentInning = match.innings[match.currentInning - 1] as Inning;
   const { t } = useI18n();
+
+  // Defensive check for transition states
+  if (!currentInning) return null;
   
   const isSuperOver = match.currentInning > 2;
   const battingTeamPlayers = currentInning.battingTeam === match.teamA.name ? match.teamA : match.teamB;
@@ -242,7 +245,7 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
   const isControlsDisabled = !strikerId || !nonStrikerId || !bowlerId;
 
   const targetIdx = match.currentInning === 2 ? 0 : (match.currentInning === 4 ? 2 : -1);
-  const target = targetIdx !== -1 ? match.innings[targetIdx].score + 1 : 0;
+  const target = targetIdx !== -1 ? match.innings[targetIdx]?.score + 1 : 0;
   const runsNeeded = target > 0 ? target - currentInning.score : 0;
   const maxOvers = match.currentInning > 2 ? 1 : match.oversLimit;
   const totalPossibleBalls = maxOvers * 6;

@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { use, useState } from 'react';
@@ -18,6 +19,10 @@ export default function StreamingOverlay({ params }: { params: Promise<{ peerId:
   );
 
   const currentInning = match.innings[match.currentInning - 1] as Inning;
+  
+  // Defensive check for transition states
+  if (!currentInning) return null;
+
   const battingTeamObj = currentInning.battingTeam === match.teamA.name ? match.teamA : match.teamB;
   const brandingColor = battingTeamObj.color || '#2C5A37';
 
