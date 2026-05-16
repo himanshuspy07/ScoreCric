@@ -69,8 +69,16 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
 
   const topScorers = Object.entries(playerStats).sort((a, b) => b[1].runs - a[1].runs).slice(0, 5);
   const topWicketTakers = Object.entries(playerStats).sort((a, b) => b[1].wickets - a[1].wickets).slice(0, 5);
-  const topSixHitters = Object.entries(playerStats).sort((a, b) => b[1].sixes - a[1].sixes).slice(0, 5);
-  const topFourHitters = Object.entries(playerStats).sort((a, b) => b[1].fours - a[1].fours).slice(0, 5);
+  
+  // Boundary Kings: Sorted by (sixes * 6) + (fours * 4)
+  const boundaryKings = Object.entries(playerStats)
+    .sort((a, b) => {
+      const pointsA = (a[1].sixes * 6) + (a[1].fours * 4);
+      const pointsB = (b[1].sixes * 6) + (b[1].fours * 4);
+      return pointsB - pointsA;
+    })
+    .slice(0, 5);
+
   const highestInnings = [...inningsPerformances].sort((a, b) => b.runs - a.runs).slice(0, 5);
   const bestSpells = [...bowlingSpells].sort((a, b) => b.wickets - a.wickets || a.runsConceded - b.runsConceded).slice(0, 5);
   const topStrikeRates = Object.entries(playerStats)
@@ -337,13 +345,13 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
                  </CardContent>
                </Card>
 
-               {/* 6. Boundary Kings (Sixes/Fours) */}
+               {/* 6. Boundary Kings (Weighted Sixes/Fours) */}
                <Card className="border-2 rounded-[1.5rem] overflow-hidden shadow-sm">
                  <CardHeader className="bg-slate-800 text-white p-4"><CardTitle className="text-sm font-black flex items-center gap-2"><Award className="w-4 h-4" /> Boundary Kings</CardTitle></CardHeader>
                  <CardContent className="p-0">
                     <Table>
                       <TableBody>
-                        {topSixHitters.map(([name, stats], i) => (
+                        {boundaryKings.map(([name, stats], i) => (
                           <TableRow key={name}>
                             <TableCell className="p-3 font-bold text-xs"><span className="opacity-40 mr-2">{i+1}</span>{name}</TableCell>
                             <TableCell className="p-3 text-right font-black">
