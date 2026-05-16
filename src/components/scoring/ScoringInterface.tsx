@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Match, Inning, Ball, DismissalType } from '@/types/cricket';
 import { Users, PlayCircle, Undo2, ChevronRight, Activity, Target } from 'lucide-react';
+import { useI18n } from '@/hooks/use-i18n';
 
 interface ScoringInterfaceProps {
   match: Match;
@@ -17,6 +18,7 @@ interface ScoringInterfaceProps {
 
 export default function ScoringInterface({ match, onUpdate }: ScoringInterfaceProps) {
   const currentInning = match.innings[match.currentInning - 1] as Inning;
+  const { t } = useI18n();
   
   const isSuperOver = match.currentInning > 2;
   const battingTeamPlayers = currentInning.battingTeam === match.teamA.name ? match.teamA : match.teamB;
@@ -257,15 +259,15 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
                     <Target className="w-5 h-5 text-amber-600" />
                  </div>
                  <div>
-                    <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">The Chase</p>
+                    <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">{t('target')}</p>
                     <p className="text-lg font-black text-amber-900 leading-tight">
-                      {runsNeeded > 0 ? `Need ${runsNeeded} runs to win` : "Target achieved!"}
+                      {runsNeeded > 0 ? `${t('need')} ${runsNeeded} ${t('toWin')}` : "Target achieved!"}
                     </p>
                  </div>
               </div>
               <div className="text-right">
-                 <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Remaining</p>
-                 <p className="text-lg font-black text-amber-900">{ballsRemaining} <span className="text-[10px] opacity-40">BALLS</span></p>
+                 <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">{t('balls')}</p>
+                 <p className="text-lg font-black text-amber-900">{ballsRemaining} <span className="text-[10px] opacity-40">{t('balls').toUpperCase()}</span></p>
               </div>
            </CardContent>
         </Card>
@@ -274,7 +276,7 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
       <Card className="border-primary/20 bg-white/60 backdrop-blur-md shadow-2xl rounded-[2rem] overflow-hidden">
         <CardContent className="pt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <div className="space-y-3">
-            <Label className="flex items-center gap-2 text-xs font-black text-muted-foreground uppercase tracking-[0.2em]"><Users className="w-4 h-4 text-primary" /> Active Striker</Label>
+            <Label className="flex items-center gap-2 text-xs font-black text-muted-foreground uppercase tracking-[0.2em]"><Users className="w-4 h-4 text-primary" /> {t('activeStriker')}</Label>
             <Select value={strikerId} onValueChange={setStrikerId}>
               <SelectTrigger className="font-black border-2 h-14 rounded-2xl text-lg bg-white/50">
                 <SelectValue placeholder="Select Batter" />
@@ -289,7 +291,7 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
             </Select>
           </div>
           <div className="space-y-3">
-            <Label className="flex items-center gap-2 text-xs font-black text-muted-foreground uppercase tracking-[0.2em]"><Users className="w-4 h-4 text-primary" /> Non-Striker</Label>
+            <Label className="flex items-center gap-2 text-xs font-black text-muted-foreground uppercase tracking-[0.2em]"><Users className="w-4 h-4 text-primary" /> {t('nonStriker')}</Label>
             <Select value={nonStrikerId} onValueChange={setNonStrikerId}>
               <SelectTrigger className="font-black border-2 h-14 rounded-2xl text-lg bg-white/50">
                 <SelectValue placeholder="Select Batter" />
@@ -304,7 +306,7 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
             </Select>
           </div>
           <div className="col-span-1 md:col-span-2 lg:col-span-1 space-y-3">
-            <Label className="flex items-center gap-2 text-xs font-black text-muted-foreground uppercase tracking-[0.2em]"><PlayCircle className="w-4 h-4 text-primary" /> Current Bowler</Label>
+            <Label className="flex items-center gap-2 text-xs font-black text-muted-foreground uppercase tracking-[0.2em]"><PlayCircle className="w-4 h-4 text-primary" /> {t('bowler')}</Label>
             <Select value={bowlerId} onValueChange={setBowlerId}>
               <SelectTrigger className="font-black border-2 h-14 rounded-2xl text-lg bg-white/50">
                 <SelectValue placeholder="Assign Bowler" />
@@ -340,18 +342,18 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
           onClick={() => addBall(0, { isWide: true })} 
           className="h-16 sm:h-20 text-lg font-black bg-amber-50 text-amber-700 border-4 border-amber-200 shadow-lg rounded-3xl active:scale-95 disabled:opacity-30"
         >
-          WIDE
+          {t('wide')}
         </Button>
         <Button 
           disabled={isControlsDisabled}
           onClick={() => addBall(0, { isNoBall: true })} 
           className="h-16 sm:h-20 text-lg font-black bg-blue-50 text-blue-700 border-4 border-blue-200 shadow-lg rounded-3xl active:scale-95 disabled:opacity-30"
         >
-          NO BALL
+          {t('noBall')}
         </Button>
         <Dialog open={isWicketOpen} onOpenChange={setIsWicketOpen}>
           <DialogTrigger asChild>
-            <Button disabled={isControlsDisabled} variant="destructive" className="h-16 sm:h-20 text-lg font-black shadow-xl shadow-destructive/20 rounded-3xl active:scale-95 disabled:opacity-30">WICKET</Button>
+            <Button disabled={isControlsDisabled} variant="destructive" className="h-16 sm:h-20 text-lg font-black shadow-xl shadow-destructive/20 rounded-3xl active:scale-95 disabled:opacity-30">{t('wickets').toUpperCase()}</Button>
           </DialogTrigger>
           <DialogContent className="w-[90%] rounded-[2rem] sm:w-full">
             <DialogHeader>
@@ -385,7 +387,7 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
           className="h-16 sm:h-20 text-lg font-black gap-2 border-4 rounded-3xl active:scale-95 shadow-xl"
           disabled={currentInning.balls.length === 0}
         >
-          <Undo2 className="w-6 h-6" /> UNDO
+          <Undo2 className="w-6 h-6" /> {t('undo')}
         </Button>
       </div>
 

@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -14,10 +13,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Trophy, LogIn, LogOut, User, Plus } from 'lucide-react';
+import { Trophy, LogIn, LogOut, User, Plus, Globe } from 'lucide-react';
+import { useI18n } from '@/hooks/use-i18n';
+import { Language } from '@/lib/translations';
 
 export function GlobalHeader() {
   const { user, loading, signInWithGoogle, logout } = useUser();
+  const { language, setLanguage, t } = useI18n();
+
+  const langNames = {
+    en: 'English',
+    hi: 'हिन्दी',
+    ur: 'اردو',
+    bn: 'বাংলা'
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-md px-4 h-14 flex items-center justify-between">
@@ -28,14 +37,33 @@ export function GlobalHeader() {
         <span className="font-black tracking-tighter text-lg text-primary">ScoreCric</span>
       </Link>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="rounded-full">
+              <Globe className="w-5 h-5 text-primary" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="rounded-2xl">
+            {(Object.keys(langNames) as Language[]).map((lang) => (
+              <DropdownMenuItem 
+                key={lang} 
+                onClick={() => setLanguage(lang)}
+                className={`font-bold ${language === lang ? 'bg-primary/10 text-primary' : ''}`}
+              >
+                {langNames[lang]}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         {loading ? (
           <div className="w-8 h-8 rounded-full bg-muted animate-pulse" />
         ) : user ? (
           <>
             <Link href="/match/setup" className="hidden sm:block">
               <Button size="sm" className="rounded-full gap-1.5 font-bold">
-                <Plus className="w-4 h-4" /> New Match
+                <Plus className="w-4 h-4" /> {t('newMatch')}
               </Button>
             </Link>
             <DropdownMenu>
@@ -59,7 +87,7 @@ export function GlobalHeader() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link href="/match/setup" className="cursor-pointer font-medium">
-                    <Plus className="mr-2 h-4 w-4" /> Create Match
+                    <Plus className="mr-2 h-4 w-4" /> {t('newMatch')}
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />

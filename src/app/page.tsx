@@ -23,10 +23,12 @@ import { useUser } from '@/firebase';
 import { deleteMatchFromLocalStorage, deleteTournamentFromLocalStorage, useLocalMatches, useLocalTournaments } from '@/lib/storage';
 import { Match, Tournament } from '@/types/cricket';
 import { Trophy, Plus, Trash2, LayoutGrid, ChevronRight, Calendar, Radio, PlayCircle } from 'lucide-react';
+import { useI18n } from '@/hooks/use-i18n';
 
 export default function Home() {
   const router = useRouter();
   const { user, signInWithGoogle, loading: authLoading } = useUser();
+  const { t } = useI18n();
   const [matchToDelete, setMatchToDelete] = useState<Match | null>(null);
   const [isMatchDeleteDialogOpen, setIsMatchDeleteDialogOpen] = useState(false);
   const [tournamentToDelete, setTournamentToDelete] = useState<Tournament | null>(null);
@@ -64,7 +66,7 @@ export default function Home() {
       {!user && !authLoading && (
         <section className="text-center py-16 px-6 rounded-[2.5rem] bg-gradient-to-br from-primary to-primary/80 text-white shadow-2xl relative overflow-hidden">
           <div className="relative z-10 max-w-2xl mx-auto">
-            <h2 className="text-4xl sm:text-6xl font-black mb-6 tracking-tighter leading-none">Live Cricket, Pro Results.</h2>
+            <h2 className="text-4xl sm:text-6xl font-black mb-6 tracking-tighter leading-none">{t('getStarted')}</h2>
             <p className="text-white/80 text-lg font-medium mb-10">Score matches instantly and manage your local league with ease.</p>
             <Button onClick={() => signInWithGoogle()} size="lg" variant="secondary" className="rounded-full font-black px-10 h-14 text-lg shadow-xl">
               Get Started Free
@@ -80,19 +82,19 @@ export default function Home() {
                 <Radio className="w-5 h-5 text-white" />
              </div>
              <div>
-                <h3 className="text-xl font-black tracking-tighter uppercase">Watch Live Match</h3>
+                <h3 className="text-xl font-black tracking-tighter uppercase">{t('watchLive')}</h3>
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Connect to a live scorer device</p>
              </div>
           </div>
           <form onSubmit={handleJoinLive} className="flex gap-2">
             <Input 
-              placeholder="Enter Match ID (e.g. scorecric-abc123)" 
+              placeholder={t('matchIdPlaceholder')}
               value={liveId}
               onChange={(e) => setLiveId(e.target.value)}
               className="h-14 rounded-2xl border-2 font-bold bg-muted/20"
             />
             <Button type="submit" className="h-14 px-6 rounded-2xl font-black gap-2">
-               <PlayCircle className="w-5 h-5" /> Join
+               <PlayCircle className="w-5 h-5" /> {t('join')}
             </Button>
           </form>
         </CardContent>
@@ -101,18 +103,18 @@ export default function Home() {
       <Tabs defaultValue="matches" className="space-y-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <TabsList className="bg-white/50 border p-1 rounded-2xl h-12 w-fit">
-            <TabsTrigger value="matches" className="rounded-xl font-black text-xs uppercase tracking-widest px-6">Recent Matches</TabsTrigger>
-            <TabsTrigger value="tournaments" className="rounded-xl font-black text-xs uppercase tracking-widest px-6">Tournaments</TabsTrigger>
+            <TabsTrigger value="matches" className="rounded-xl font-black text-xs uppercase tracking-widest px-6">{t('recentMatches')}</TabsTrigger>
+            <TabsTrigger value="tournaments" className="rounded-xl font-black text-xs uppercase tracking-widest px-6">{t('tournaments')}</TabsTrigger>
           </TabsList>
           <div className="flex gap-2">
             <Link href="/tournament/setup">
               <Button variant="outline" size="sm" className="rounded-full gap-2 font-bold border-2">
-                <Calendar className="w-4 h-4" /> New Tournament
+                <Calendar className="w-4 h-4" /> {t('newTournament')}
               </Button>
             </Link>
             <Link href="/match/setup">
               <Button size="sm" className="rounded-full gap-2 font-bold">
-                <Plus className="w-4 h-4" /> New Match
+                <Plus className="w-4 h-4" /> {t('newMatch')}
               </Button>
             </Link>
           </div>
@@ -152,7 +154,7 @@ export default function Home() {
                           </p>
                         )}
                         <div className="flex items-center justify-between pt-4 border-t">
-                          <p className="text-[10px] font-black uppercase tracking-widest text-secondary">{match.status === 'completed' ? match.winner + ' WON' : 'LIVE NOW'}</p>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-secondary">{match.status === 'completed' ? match.winner + ' ' + (match.winner === 'Tie' ? t('tied') : t('victory')) : 'LIVE NOW'}</p>
                           <ChevronRight className="w-4 h-4 text-primary opacity-20 group-hover:opacity-100 transition-opacity" />
                         </div>
                       </CardContent>
