@@ -10,7 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trophy, Plus, Trash2, ChevronRight, ChevronLeft, Settings, Users, Activity, Palette, History } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Trophy, Plus, Trash2, ChevronRight, ChevronLeft, Settings, Users, Activity, Palette, History, Swords } from 'lucide-react';
 import { saveTournamentToLocalStorage, useLocalMatches } from '@/lib/storage';
 import { generateTournamentFixtures } from '@/lib/match-utils';
 import { useUser } from '@/firebase';
@@ -41,7 +42,8 @@ export default function TournamentSetup() {
   const [settings, setSettings] = useState({
     overs: 20,
     playersPerTeam: 11,
-    matchesPerTeam: 1
+    matchesPerTeam: 1,
+    includeKnockouts: true
   });
 
   const { data: pastMatches } = useLocalMatches();
@@ -85,7 +87,6 @@ export default function TournamentSetup() {
   const handleImportPlayers = (teamIdx: number, importedPlayers: string[]) => {
     const newTeams = [...teams];
     const count = settings.playersPerTeam;
-    // Pad or truncate to match tournament settings
     const players = Array.from({ length: count }, (_, i) => importedPlayers[i] || `${newTeams[teamIdx].name || 'Team'} Player ${i + 1}`);
     newTeams[teamIdx].players = players;
     setTeams(newTeams);
@@ -114,7 +115,7 @@ export default function TournamentSetup() {
   const handleSubmit = () => {
     const id = Math.random().toString(36).substr(2, 9);
     const teamNames = teams.map(t => t.name);
-    const fixtures = generateTournamentFixtures(teamNames, settings.matchesPerTeam);
+    const fixtures = generateTournamentFixtures(teamNames, settings.matchesPerTeam, settings.includeKnockouts);
 
     const tournament: Tournament = {
       id,
@@ -127,13 +128,14 @@ export default function TournamentSetup() {
       settings: {
         overs: settings.overs,
         playersPerTeam: settings.playersPerTeam,
-        matchesPerTeam: settings.matchesPerTeam
+        matchesPerTeam: settings.matchesPerTeam,
+        includeKnockouts: settings.includeKnockouts
       },
       fixtures
     };
 
     saveTournamentToLocalStorage(tournament);
-    toast({ title: "Tournament Created", description: `${fixtures.length} fixtures generated automatically!` });
+    toast({ title: "Tournament Created", description: `${fixtures.length} fixtures generated!` });
     router.push(`/tournament/${id}`);
   };
 
@@ -292,10 +294,9 @@ export default function TournamentSetup() {
           )}
 
           {step === 4 && (
-            <div className="space-y-8 max-w-xl mx-auto text-center">
-              <div className="space-y-4">
-                <Label className="text-xl font-black block uppercase tracking-widest text-primary">Matches Per Pair</Label>
-                <p className="text-sm text-muted-foreground font-medium mb-4">Select the number of times each team will play against one another in the group stage.</p>
+            <div className="space-y-12 max-w-xl mx-auto text-center">
+              <div className="space-y-6">
+                <Label className="text-xl font-black block uppercase tracking-widest text-primary">Group Stage Matches</Label>
                 <div className="grid grid-cols-3 gap-4">
                   {[1, 2, 3].map(count => (
                     <button 
@@ -309,13 +310,23 @@ export default function TournamentSetup() {
                   ))}
                 </div>
               </div>
+
+              <div className="bg-primary/5 p-6 rounded-3xl border-2 border-primary/10 flex items-center justify-between">
+                <div className="text-left">
+                  <h4 className="font-black text-primary uppercase text-sm">Knockout Stage</h4>
+                  <p className="text-xs text-muted-foreground font-medium">Include Semi-finals and a Grand Final</p>
+                </div>
+                <Switch 
+                  checked={settings.includeKnockouts} 
+                  onCheckedChange={val => setSettings({...settings, includeKnockouts: val})} 
+                />
+              </div>
               
               <div className="bg-muted/30 p-8 rounded-[2.5rem] border-2 border-dashed space-y-3">
                  <Settings className="w-10 h-10 mx-auto text-primary/40 mb-2" />
                  <h4 className="font-black text-primary uppercase text-sm tracking-[0.2em]">Fixture Generation Summary</h4>
                  <p className="text-xs font-medium text-muted-foreground leading-relaxed">
-                   Based on your {teams.length} teams and the {settings.matchesPerTeam}x format, ScoreCric will automatically generate <strong>{generateTournamentFixtures(teams.map(t => t.name), settings.matchesPerTeam).length} fixtures</strong>. 
-                   Player rosters and team colors are now finalized.
+                   Based on your {teams.length} teams and chosen format, ScoreCric will automatically generate <strong>{generateTournamentFixtures(teams.map(t => t.name), settings.matchesPerTeam, settings.includeKnockouts).length} fixtures</strong>. 
                  </p>
               </div>
             </div>
@@ -340,4 +351,3 @@ export default function TournamentSetup() {
     </div>
   );
 }
-

@@ -159,10 +159,16 @@ export const calculateTournamentStandings = (matches: Match[], tournamentTeams: 
   });
 
   matches.filter(m => m.status === 'completed').forEach(m => {
+    // Only group stage matches should typically count for league standings
+    // However, for simplicity in local tournaments, we filter based on metadata if available
+    // or just include all. For now, let's assume all contribute to stats, 
+    // but standings usually use group stage results.
     const teamA = m.teamA.name;
     const teamB = m.teamB.name;
     const inn1 = m.innings[0]!;
     const inn2 = m.innings[1]!;
+
+    if (!standings[teamA] || !standings[teamB]) return;
 
     standings[teamA].played += 1;
     standings[teamB].played += 1;
@@ -187,9 +193,9 @@ export const calculateTournamentStandings = (matches: Match[], tournamentTeams: 
     standings[inn1.bowlingTeam].ballsAgainst += (m.oversLimit * 6);
 
     standings[inn2.battingTeam].runsFor += inn2.score;
-    standings[inn2.battingTeam].ballsFor += inn2.wickets === (m.teamA.players.length - 1) ? (m.oversLimit * 6) : (inn2.overs * 6 + inn2.ballsInOver);
+    standings[inn2.battingTeam].ballsFor += inn2.wickets >= (m.teamA.players.length - 1) ? (m.oversLimit * 6) : (inn2.overs * 6 + inn2.ballsInOver);
     standings[inn2.bowlingTeam].runsAgainst += inn2.score;
-    standings[inn2.bowlingTeam].ballsAgainst += inn2.wickets === (m.teamA.players.length - 1) ? (m.oversLimit * 6) : (inn2.overs * 6 + inn2.ballsInOver);
+    standings[inn2.bowlingTeam].ballsAgainst += inn2.wickets >= (m.teamA.players.length - 1) ? (m.oversLimit * 6) : (inn2.overs * 6 + inn2.ballsInOver);
   });
 
   Object.keys(standings).forEach(team => {
@@ -246,7 +252,7 @@ export const calculatePlayerOfTheMatch = (match: Match): string => {
   return winner;
 };
 
-export const generateTournamentFixtures = (teams: string[], matchesPerTeam: number): Fixture[] => {
+export const generateTournamentFixtures = (teams: string[], matchesPerTeam: number, includeKnockouts: boolean = false): Fixture[] => {
   const fixtures: Fixture[] = [];
   const n = teams.length;
   if (n < 2) return [];
@@ -257,8 +263,8 @@ export const generateTournamentFixtures = (teams: string[], matchesPerTeam: numb
   const totalTeams = teamList.length;
   const rounds = totalTeams - 1;
 
+  // Group Stage
   for (let r = 0; r < matchesPerTeam; r++) {
-    const roundOffset = r * rounds;
     for (let round = 0; round < rounds; round++) {
       for (let i = 0; i < totalTeams / 2; i++) {
         const teamA = teamList[i];
@@ -269,16 +275,39 @@ export const generateTournamentFixtures = (teams: string[], matchesPerTeam: numb
             id: Math.random().toString(36).substr(2, 9),
             teamA,
             teamB,
-            status: 'pending'
+            status: 'pending',
+            round: 'group'
           });
         }
       }
-      // Rotate teams except the first one
       teamList.splice(1, 0, teamList.pop()!);
     }
   }
 
-  // If we have more fixtures than matchesPerTeam requested (due to rounding/rotations), we could trim, 
-  // but round robin naturally generates sets. We'll return the full set.
+  // Optional Knockouts Placeholders
+  if (includeKnockouts) {
+    fixtures.push({
+      id: Math.random().toString(36).substr(2, 9),
+      teamA: 'TBD (Seed 1)',
+      teamB: 'TBD (Seed 4)',
+      status: 'pending',
+      round: 'semi-final'
+    });
+    fixtures.push({
+      id: Math.random().toString(36).substr(2, 9),
+      teamA: 'TBD (Seed 2)',
+      teamB: 'TBD (Seed 3)',
+      status: 'pending',
+      round: 'semi-final'
+    });
+    fixtures.push({
+      id: Math.random().toString(36).substr(2, 9),
+      teamA: 'TBD (Winner SF1)',
+      teamB: 'TBD (Winner SF2)',
+      status: 'pending',
+      round: 'final'
+    });
+  }
+
   return fixtures;
 };

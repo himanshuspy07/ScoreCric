@@ -105,18 +105,22 @@ export interface Match {
   tournamentId?: string;
 }
 
+export type FixtureRound = 'group' | 'semi-final' | 'final';
+
 export interface Fixture {
   id: string;
   teamA: string;
   teamB: string;
   matchId?: string;
   status: 'pending' | 'completed' | 'live';
+  round?: FixtureRound;
 }
 
 export interface TournamentSettings {
   overs: number;
   playersPerTeam: number;
   matchesPerTeam: number;
+  includeKnockouts?: boolean;
 }
 
 export interface Tournament {

@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { use, useState, useMemo } from 'react';
@@ -11,9 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { useLocalTournament, useLocalMatches, saveTournamentToLocalStorage, saveMatchToLocalStorage } from '@/lib/storage';
 import { calculateTournamentStandings } from '@/lib/match-utils';
-import { ChevronLeft, Trophy, Star, ChevronRight, Plus, Calendar, Activity, Award } from 'lucide-react';
+import { ChevronLeft, Trophy, Star, ChevronRight, Plus, Calendar, Activity, Award, Swords } from 'lucide-react';
 import Link from 'next/link';
-import { Match, Inning, Fixture, Team } from '@/types/cricket';
+import { Match, Inning, Fixture, Team, FixtureRound } from '@/types/cricket';
 import { useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 
@@ -30,6 +31,7 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
   const [isAddFixtureOpen, setIsAddFixtureOpen] = useState(false);
   const [customTeamA, setCustomTeamA] = useState('');
   const [customTeamB, setCustomTeamB] = useState('');
+  const [customRound, setCustomRound] = useState<FixtureRound>('group');
 
   // Memoize tournament-specific matches and names
   const tournamentMatches = useMemo(() => 
@@ -50,8 +52,6 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
   // Memoize heavy player statistics calculations
   const playerStats = useMemo(() => {
     const stats: Record<string, { name: string; runs: number; wickets: number; team: string; sixes: number; fours: number; balls: number }> = {};
-    const innings: Array<{ name: string; runs: number; balls: number; team: string }> = [];
-    const spells: Array<{ name: string; wickets: number; runsConceded: number; team: string }> = [];
 
     tournamentMatches.forEach(m => {
       m.innings.forEach(inn => {
@@ -62,13 +62,10 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
           stats[b.id].sixes += (b.sixes || 0);
           stats[b.id].fours += (b.fours || 0);
           stats[b.id].balls += (b.balls || 0);
-          if (b.balls > 0) innings.push({ name: b.name, runs: b.runs, balls: b.balls, team: inn.battingTeam });
         });
         Object.values(inn.bowlers).forEach(bw => {
           if (!stats[bw.id]) stats[bw.id] = { name: bw.name, runs: 0, wickets: 0, team: inn.bowlingTeam, sixes: 0, fours: 0, balls: 0 };
           stats[bw.id].wickets += bw.wickets;
-          const totalBalls = (bw.overs * 6) + bw.balls;
-          if (totalBalls > 0) spells.push({ name: bw.name, wickets: bw.wickets, runsConceded: bw.runsConceded, team: inn.bowlingTeam });
         });
       });
     });
@@ -102,7 +99,8 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
       id: Math.random().toString(36).substr(2, 9),
       teamA: customTeamA,
       teamB: customTeamB,
-      status: 'pending'
+      status: 'pending',
+      round: customRound
     };
 
     const updatedTournament = {
@@ -114,7 +112,8 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
     setIsAddFixtureOpen(false);
     setCustomTeamA('');
     setCustomTeamB('');
-    toast({ title: "Match Added", description: `Custom match between ${customTeamA} and ${customTeamB} registered.` });
+    setCustomRound('group');
+    toast({ title: "Match Added", description: `${customRound.toUpperCase()} match registered.` });
   };
 
   const startFixture = (fixture: Fixture) => {
@@ -133,7 +132,7 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
     });
 
     const newMatch: Match = {
-      id, title: `${fixture.teamA} vs ${fixture.teamB}`, format: 'Custom',
+      id, title: `${fixture.round?.toUpperCase() || 'GROUP'}: ${fixture.teamA} vs ${fixture.teamB}`, format: 'Custom',
       oversLimit: tSettings.overs,
       teamA: { name: fixture.teamA, players: teamAData?.players || [], color: teamAData?.color || '#2C5A37' },
       teamB: { name: fixture.teamB, players: teamBData?.players || [], color: teamBData?.color || '#1E40AF' },
@@ -146,6 +145,20 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
     saveMatchToLocalStorage(newMatch);
     router.push(`/match/${id}`);
   };
+
+  const groupedFixtures = useMemo(() => {
+    const group: Fixture[] = [];
+    const semis: Fixture[] = [];
+    const finals: Fixture[] = [];
+    
+    (tournament.fixtures || []).forEach(f => {
+      if (f.round === 'semi-final') semis.push(f);
+      else if (f.round === 'final') finals.push(f);
+      else group.push(f);
+    });
+    
+    return { group, semis, finals };
+  }, [tournament.fixtures]);
 
   return (
     <div className="min-h-screen bg-[#F3FAF4] pb-24">
@@ -196,36 +209,53 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
             </Card>
           </TabsContent>
 
-          <TabsContent value="fixtures" className="space-y-6">
+          <TabsContent value="fixtures" className="space-y-10">
              <div className="flex justify-between items-center px-2">
-                <h3 className="text-lg font-black text-primary uppercase tracking-tighter">Tournament Fixtures</h3>
+                <h3 className="text-lg font-black text-primary uppercase tracking-tighter">Fixtures & Schedule</h3>
                 <Button onClick={() => setIsAddFixtureOpen(true)} size="sm" className="rounded-full gap-2 font-bold shadow-lg">
                    <Plus className="w-4 h-4" /> Add Match
                 </Button>
              </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {(tournament.fixtures || []).map((f) => (
-                   <Card key={f.id} className="border-2 rounded-2xl p-5 flex justify-between items-center bg-white shadow-sm hover:border-primary/20 transition-colors">
-                      <div>
-                        <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">{f.matchId ? 'Ongoing / Played' : 'Upcoming'}</p>
-                        <h4 className="font-black text-lg text-primary">{f.teamA} v {f.teamB}</h4>
-                      </div>
-                      {f.matchId ? (
-                        <Button variant="outline" asChild className="rounded-xl font-bold">
-                           <Link href={`/match/${f.matchId}`}>View Card</Link>
-                        </Button>
-                      ) : (
-                        <Button onClick={() => startFixture(f)} className="rounded-xl font-bold px-6">Start</Button>
-                      )}
-                   </Card>
-                ))}
-                {(tournament.fixtures || []).length === 0 && (
-                   <div className="col-span-full py-20 border-4 border-dashed rounded-[2.5rem] text-center text-muted-foreground font-bold flex flex-col items-center gap-3">
-                      <Activity className="w-10 h-10 opacity-20" />
-                      <p>No fixtures found. Generate or add a match.</p>
-                      <Button onClick={() => setIsAddFixtureOpen(true)} variant="outline" className="mt-2 rounded-full font-bold">Add Custom Match</Button>
-                   </div>
-                )}
+
+             {/* Finals */}
+             {groupedFixtures.finals.length > 0 && (
+               <div className="space-y-4">
+                  <h4 className="flex items-center gap-2 text-sm font-black text-amber-600 uppercase tracking-widest px-2"><Trophy className="w-4 h-4" /> Grand Final</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {groupedFixtures.finals.map(f => (
+                      <FixtureCard key={f.id} fixture={f} onStart={() => startFixture(f)} />
+                    ))}
+                  </div>
+               </div>
+             )}
+
+             {/* Semis */}
+             {groupedFixtures.semis.length > 0 && (
+               <div className="space-y-4">
+                  <h4 className="flex items-center gap-2 text-sm font-black text-primary/60 uppercase tracking-widest px-2"><Swords className="w-4 h-4" /> Semi Finals</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {groupedFixtures.semis.map(f => (
+                      <FixtureCard key={f.id} fixture={f} onStart={() => startFixture(f)} />
+                    ))}
+                  </div>
+               </div>
+             )}
+
+             {/* Group Stage */}
+             <div className="space-y-4">
+                <h4 className="text-sm font-black text-muted-foreground uppercase tracking-widest px-2">Group Stage</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {groupedFixtures.group.map(f => (
+                    <FixtureCard key={f.id} fixture={f} onStart={() => startFixture(f)} />
+                  ))}
+                  {groupedFixtures.group.length === 0 && groupedFixtures.semis.length === 0 && groupedFixtures.finals.length === 0 && (
+                    <div className="col-span-full py-20 border-4 border-dashed rounded-[2.5rem] text-center text-muted-foreground font-bold flex flex-col items-center gap-3">
+                        <Activity className="w-10 h-10 opacity-20" />
+                        <p>No fixtures found. Generate or add a match.</p>
+                        <Button onClick={() => setIsAddFixtureOpen(true)} variant="outline" className="mt-2 rounded-full font-bold">Add Custom Match</Button>
+                    </div>
+                  )}
+                </div>
              </div>
           </TabsContent>
 
@@ -337,10 +367,23 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
       <Dialog open={isAddFixtureOpen} onOpenChange={setIsAddFixtureOpen}>
         <DialogContent className="max-w-md w-[95%] rounded-[2.5rem]">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-black text-primary">Add Custom Match</DialogTitle>
-            <DialogDescription className="text-xs font-bold uppercase tracking-widest">Select teams for the new fixture</DialogDescription>
+            <DialogTitle className="text-2xl font-black text-primary">Schedule New Match</DialogTitle>
+            <DialogDescription className="text-xs font-bold uppercase tracking-widest">Configure teams and round type</DialogDescription>
           </DialogHeader>
           <div className="py-6 space-y-6">
+            <div className="space-y-3">
+               <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Tournament Round</Label>
+               <Select value={customRound} onValueChange={(v) => setCustomRound(v as FixtureRound)}>
+                 <SelectTrigger className="h-14 rounded-2xl border-2 font-bold text-lg">
+                   <SelectValue />
+                 </SelectTrigger>
+                 <SelectContent className="rounded-2xl">
+                    <SelectItem value="group" className="font-bold">Group Stage</SelectItem>
+                    <SelectItem value="semi-final" className="font-bold">Semi-Final</SelectItem>
+                    <SelectItem value="final" className="font-bold">Final</SelectItem>
+                 </SelectContent>
+               </Select>
+            </div>
             <div className="space-y-3">
                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Team A (Home)</Label>
                <Select value={customTeamA} onValueChange={setCustomTeamA}>
@@ -370,10 +413,28 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
           </div>
           <DialogFooter className="gap-3">
              <Button variant="outline" onClick={() => setIsAddFixtureOpen(false)} className="h-12 rounded-xl font-bold flex-1">Cancel</Button>
-             <Button onClick={addCustomFixture} className="h-12 rounded-xl font-black flex-1">Add to Fixtures</Button>
+             <Button onClick={addCustomFixture} className="h-12 rounded-xl font-black flex-1">Register Match</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function FixtureCard({ fixture, onStart }: { fixture: Fixture, onStart: () => void }) {
+  return (
+    <Card className="border-2 rounded-2xl p-5 flex justify-between items-center bg-white shadow-sm hover:border-primary/20 transition-colors">
+      <div>
+        <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">{fixture.matchId ? 'Ongoing / Played' : 'Ready to Start'}</p>
+        <h4 className="font-black text-lg text-primary">{fixture.teamA} v {fixture.teamB}</h4>
+      </div>
+      {fixture.matchId ? (
+        <Button variant="outline" asChild className="rounded-xl font-bold">
+           <Link href={`/match/${fixture.matchId}`}>View Card</Link>
+        </Button>
+      ) : (
+        <Button onClick={onStart} className="rounded-xl font-bold px-6">Start</Button>
+      )}
+    </Card>
   );
 }
