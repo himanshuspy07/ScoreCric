@@ -28,6 +28,11 @@ export function useUser() {
     try {
       await signInWithPopup(auth, provider);
     } catch (error: any) {
+      // Ignore user-cancelled popup errors or multiple concurrent requests
+      if (error.code === 'auth/cancelled-popup-request' || error.code === 'auth/popup-closed-by-user') {
+        return;
+      }
+
       console.error('Authentication Error:', error);
       
       let errorMessage = 'An unexpected error occurred during sign-in.';
