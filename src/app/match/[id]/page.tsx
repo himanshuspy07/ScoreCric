@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState, use, useCallback } from 'react';
+import React, { useState, use, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,7 +20,7 @@ import {
 import { saveMatchToLocalStorage, useLocalMatch } from '@/lib/storage';
 import { Match, Inning } from '@/types/cricket';
 import { getRunRate, getRequiredRunRate, getWinProbability, getComparativeManhattanData, getComparativeWormData, calculatePlayerOfTheMatch } from '@/lib/match-utils';
-import { ChevronLeft, Share2, BarChart3, LineChart, Trophy, Zap, Activity, Target, Download, Radio, Copy, Swords, MonitorPlay } from 'lucide-react';
+import { ChevronLeft, Share2, BarChart3, LineChart, Trophy, Zap, Download, Radio, Copy, Swords, MonitorPlay } from 'lucide-react';
 import ScoringInterface from '@/components/scoring/ScoringInterface';
 import MatchScorecard from '@/components/scorecard/MatchScorecard';
 import PartnershipView from '@/components/scorecard/PartnershipView';
@@ -67,8 +67,8 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       fallOfWickets: []
     });
 
-    const teamBattedSecond = match.innings[1].battingTeam;
-    const teamBattedFirst = match.innings[0].battingTeam;
+    const teamBattedSecond = match.innings[1]?.battingTeam || match.teamB.name;
+    const teamBattedFirst = match.innings[0]?.battingTeam || match.teamA.name;
 
     const updatedMatch: Match = {
       ...match,
@@ -76,7 +76,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       status: 'live',
       currentInning: 3,
       innings: [
-        ...match.innings, 
+        ...match.innings.filter(Boolean), 
         createInning(teamBattedSecond, teamBattedFirst)
       ],
       winner: undefined,
@@ -88,48 +88,49 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
     setActiveTab('score');
   }, [match, toast]);
 
+  // Heavy data memoization for performance
+  const currentInning = useMemo(() => match?.innings[match.currentInning - 1], [match?.innings, match?.currentInning]);
+  const winProb = useMemo(() => match ? getWinProbability(match) : null, [match]);
+  const manhattanData = useMemo(() => match ? getComparativeManhattanData(match) : [], [match]);
+  const wormData = useMemo(() => match ? getComparativeWormData(match) : [], [match]);
+  
+  const battingTeamObj = useMemo(() => {
+    if (!match || !currentInning) return null;
+    return currentInning.battingTeam === match.teamA.name ? match.teamA : match.teamB;
+  }, [match?.teamA, match?.teamB, currentInning?.battingTeam]);
+
+  const stats = useMemo(() => {
+    if (!match || !currentInning) return null;
+    const totalBalls = (currentInning.overs * 6) + currentInning.ballsInOver;
+    const maxOvers = (match.currentInning > 2 ? 1 : match.oversLimit);
+    const matchTotalBalls = maxOvers * 6;
+    const ballsRemaining = Math.max(0, matchTotalBalls - totalBalls);
+    
+    const targetScoreIdx = match.currentInning === 2 ? 0 : (match.currentInning === 4 ? 2 : -1);
+    const targetScore = targetScoreIdx !== -1 ? (match.innings[targetScoreIdx]?.score || 0) + 1 : 0;
+    const rrr = targetScore > 0 ? getRequiredRunRate(targetScore, currentInning.score, ballsRemaining) : null;
+    
+    return { totalBalls, ballsRemaining, targetScore, rrr, maxOvers };
+  }, [match, currentInning]);
+
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-[#F3FAF4]">
       <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
     </div>
   );
   
-  if (!match) return (
+  if (!match || !currentInning || !stats) return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
-      <h1 className="text-2xl font-black text-primary mb-4">Match Not Found</h1>
+      <h1 className="text-2xl font-black text-primary mb-4">Match Initialization</h1>
       <Button onClick={() => router.push('/')}>Go Back Home</Button>
     </div>
   );
 
-  const currentInning = match.innings[match.currentInning - 1] as Inning;
-  
-  // Defensive check for inning transitions
-  if (!currentInning) return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F3FAF4]">
-       <div className="text-center space-y-4">
-         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-         <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Transitioning Inning...</p>
-       </div>
-    </div>
-  );
-
-  const winProb = getWinProbability(match);
-  const battingTeamObj = currentInning.battingTeam === match.teamA.name ? match.teamA : match.teamB;
-  const brandingColor = battingTeamObj.color || '#2C5A37';
-
-  const totalBalls = (currentInning.overs * 6) + currentInning.ballsInOver;
-  const matchTotalBalls = (match.currentInning > 2 ? 1 : match.oversLimit) * 6;
-  const ballsRemaining = Math.max(0, matchTotalBalls - totalBalls);
-  
-  const targetScoreIdx = match.currentInning === 2 ? 0 : (match.currentInning === 4 ? 2 : -1);
-  const targetScore = targetScoreIdx !== -1 ? (match.innings[targetScoreIdx]?.score || 0) + 1 : 0;
-  
-  const rrr = targetScore > 0 ? getRequiredRunRate(targetScore, currentInning.score, ballsRemaining) : null;
+  const brandingColor = battingTeamObj?.color || '#2C5A37';
 
   const handleScoreUpdate = (updatedInning: Inning) => {
     if (user && user.uid !== match.ownerId) return;
 
-    // Use a fresh array copy to prevent indexing gaps during transitions
     const updatedInnings = [...match.innings];
     updatedInnings[match.currentInning - 1] = updatedInning;
 
@@ -145,7 +146,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
     
     const oversFinished = updatedInning.overs >= maxOvers;
     const allOut = updatedInning.wickets >= maxWickets;
-    const targetAchieved = (match.currentInning === 2 || match.currentInning === 4) && updatedInning.score >= targetScore;
+    const targetAchieved = (match.currentInning === 2 || match.currentInning === 4) && updatedInning.score >= stats.targetScore;
 
     if (oversFinished || allOut || targetAchieved) {
       if (match.currentInning === 1) {
@@ -163,7 +164,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           fallOfWickets: []
         };
         updatedMatch.currentInning = 2;
-        updatedMatch.innings[1] = nextInning; // Replace correct placeholder slot
+        updatedMatch.innings[1] = nextInning;
         toast({ title: "Inning Finished", description: "Start second inning scoring." });
       } else if (match.currentInning === 3) {
         const nextInning: Inning = {
@@ -180,25 +181,19 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           fallOfWickets: []
         };
         updatedMatch.currentInning = 4;
-        updatedMatch.innings[3] = nextInning; // Set correct slot for super over chase
+        updatedMatch.innings[3] = nextInning;
         toast({ title: "Super Over Halfway", description: "Final chase starts now." });
       } else {
         updatedMatch.status = 'completed';
-        const finalInningIdx = match.currentInning - 1;
         const opponentInningIdx = match.currentInning - 2;
-        
         const score1 = match.innings[opponentInningIdx]?.score || 0;
         const score2 = updatedInning.score;
         
-        if (score2 > score1) {
-          updatedMatch.winner = updatedInning.battingTeam;
-        } else if (score1 > score2) {
-          updatedMatch.winner = updatedInning.bowlingTeam;
-        } else {
+        if (score2 > score1) updatedMatch.winner = updatedInning.battingTeam;
+        else if (score1 > score2) updatedMatch.winner = updatedInning.bowlingTeam;
+        else {
           updatedMatch.winner = 'Tie';
-          if (match.currentInning === 2) {
-            setShowTieDialog(true);
-          }
+          if (match.currentInning === 2) setShowTieDialog(true);
         }
         
         updatedMatch.manOfTheMatch = calculatePlayerOfTheMatch(updatedMatch);
@@ -208,13 +203,6 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
     }
 
     saveMatchToLocalStorage(updatedMatch);
-  };
-
-  const handleCopyPeerId = () => {
-    if (peerId) {
-      navigator.clipboard.writeText(peerId);
-      toast({ title: "Copied!", description: "Live ID copied to clipboard." });
-    }
   };
 
   return (
@@ -269,24 +257,24 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                 {currentInning.score}<span className="text-white/30 text-2xl sm:text-4xl">/</span>{currentInning.wickets}
               </h1>
               <p className="text-xs sm:text-sm font-black opacity-80">
-                {currentInning.overs}.{currentInning.ballsInOver} <span className="opacity-40 font-bold ml-1">({match.currentInning > 2 ? '1.0' : match.oversLimit + '.0'})</span>
+                {currentInning.overs}.{currentInning.ballsInOver} <span className="opacity-40 font-bold ml-1">({stats.maxOvers}.0)</span>
               </p>
             </div>
             <div className="text-right space-y-2">
               <div className="flex gap-2">
                 <div className="bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-white/10">
                    <p className="text-[10px] font-black opacity-60 uppercase">Run Rate</p>
-                   <p className="text-sm sm:text-base font-black">{getRunRate(currentInning.score, totalBalls)}</p>
+                   <p className="text-sm sm:text-base font-black">{getRunRate(currentInning.score, stats.totalBalls)}</p>
                 </div>
-                {rrr !== null && (
+                {stats.rrr !== null && (
                   <>
                     <div className="bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-white/10 flex flex-col items-center">
                       <p className="text-[10px] font-black opacity-60 uppercase">Target</p>
-                      <p className="text-sm sm:text-base font-black">{targetScore}</p>
+                      <p className="text-sm sm:text-base font-black">{stats.targetScore}</p>
                     </div>
                     <div className="bg-amber-500/20 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-amber-500/30 flex flex-col items-center">
                       <p className="text-[10px] font-black text-amber-300 uppercase">Req RR</p>
-                      <p className="text-sm sm:text-base font-black text-amber-200">{rrr}</p>
+                      <p className="text-sm sm:text-base font-black text-amber-200">{stats.rrr}</p>
                     </div>
                   </>
                 )}
@@ -324,9 +312,6 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                   <ScoringInterface match={match} onUpdate={handleScoreUpdate} />
                 ) : (
                   <Card className="text-center py-20 bg-white/50 border-2 border-dashed">
-                    <div className="bg-primary/10 p-6 rounded-full w-fit mx-auto mb-6">
-                       <Activity className="w-10 h-10 text-primary" />
-                    </div>
                     <h3 className="text-xl font-black text-primary mb-2">Spectating Mode</h3>
                     <p className="text-muted-foreground font-medium mb-4">You are viewing this match locally.</p>
                   </Card>
@@ -362,7 +347,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                   </CardHeader>
                   <CardContent className="pt-6 h-[300px]">
                     <ChartContainer config={{ team1: { label: match.teamA.name, color: match.teamA.color }, team2: { label: match.teamB.name, color: match.teamB.color } }} className="h-full w-full">
-                      <BarChart data={getComparativeManhattanData(match)}>
+                      <BarChart data={manhattanData}>
                         <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.1} />
                         <XAxis dataKey="over" tickLine={false} axisLine={false} />
                         <YAxis tickLine={false} axisLine={false} />
@@ -380,7 +365,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                   </CardHeader>
                   <CardContent className="pt-6 h-[300px]">
                     <ChartContainer config={{ team1: { label: match.teamA.name, color: match.teamA.color }, team2: { label: match.teamB.name, color: match.teamB.color } }} className="h-full w-full">
-                      <ReLineChart data={getComparativeWormData(match)}>
+                      <ReLineChart data={wormData}>
                         <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.1} />
                         <XAxis dataKey="over" tickLine={false} axisLine={false} />
                         <YAxis tickLine={false} axisLine={false} />
@@ -402,14 +387,6 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
               <Card className="border-2 shadow-sm rounded-2xl p-6">
                 <div className="space-y-4">
                   <div className="flex justify-between items-center pb-3 border-b">
-                     <span className="text-xs font-bold text-muted-foreground uppercase">Toss Winner</span>
-                     <span className="text-sm font-black">{match.tossWinner}</span>
-                  </div>
-                  <div className="flex justify-between items-center pb-3 border-b">
-                     <span className="text-xs font-bold text-muted-foreground uppercase">Decision</span>
-                     <span className="text-sm font-black">{match.tossChoice === 'bat' ? 'Batting' : 'Bowling'} First</span>
-                  </div>
-                  <div className="flex justify-between items-center pb-3 border-b">
                      <span className="text-xs font-bold text-muted-foreground uppercase">Format</span>
                      <span className="text-sm font-black">{match.format}</span>
                   </div>
@@ -423,49 +400,30 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           <DialogContent className="max-w-md w-[95%] rounded-[2.5rem]">
             <DialogHeader>
               <DialogTitle className="text-2xl font-black text-primary">Live Share 📡</DialogTitle>
-              <DialogDescription className="font-medium">Broadcast this match live to viewers over the internet.</DialogDescription>
             </DialogHeader>
             <div className="py-6 space-y-6">
               {status === 'disconnected' ? (
                 <div className="text-center space-y-4">
-                  <div className="bg-muted/30 p-8 rounded-3xl border-2 border-dashed">
-                    <Radio className="w-12 h-12 mx-auto text-primary/20 mb-4" />
-                    <p className="text-sm font-bold text-muted-foreground leading-relaxed">Going live allows others to see your scorecard and every ball update in real-time.</p>
-                  </div>
                   <Button onClick={startSharing} className="w-full h-14 rounded-2xl font-black text-lg">Activate Live Stream</Button>
                 </div>
               ) : (
-                <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500">
-                  <div className="flex items-center justify-center bg-white p-6 rounded-3xl shadow-inner border">
-                    {peerId ? (
-                      <QRCodeSVG value={`${window.location.origin}/live/${peerId}`} size={200} />
-                    ) : (
-                      <div className="w-[200px] h-[200px] bg-muted animate-pulse rounded-xl" />
-                    )}
+                <div className="space-y-6">
+                  <div className="flex items-center justify-center bg-white p-6 rounded-3xl border">
+                    {peerId ? <QRCodeSVG value={`${window.location.origin}/live/${peerId}`} size={200} /> : <div className="w-[200px] h-[200px] bg-muted animate-pulse rounded-xl" />}
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Peer Connection ID</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Peer ID</Label>
                     <div className="flex gap-2">
-                      <div className="flex-1 bg-muted/50 h-12 rounded-xl flex items-center px-4 font-black tracking-tighter text-sm truncate">{peerId || 'Generating...'}</div>
-                      <Button variant="outline" size="icon" className="h-12 w-12 rounded-xl" onClick={handleCopyPeerId}><Copy className="w-4 h-4" /></Button>
+                      <div className="flex-1 bg-muted/50 h-12 rounded-xl flex items-center px-4 font-black truncate">{peerId || 'Generating...'}</div>
+                      <Button variant="outline" size="icon" className="h-12 w-12" onClick={() => { if(peerId) navigator.clipboard.writeText(peerId); }}><Copy className="w-4 h-4" /></Button>
                     </div>
                   </div>
-                  
-                  <div className="flex flex-col gap-3">
-                    <div className="flex items-center gap-2 bg-green-50 text-green-700 p-4 rounded-2xl border border-green-100">
-                      <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                      <span className="text-xs font-black uppercase tracking-widest">Live Broadcasting Enabled</span>
-                    </div>
-                    {peerId && (
-                      <Button asChild variant="outline" className="h-12 rounded-2xl font-bold gap-2 border-2">
-                        <Link href={`/live/${peerId}/overlay`} target="_blank">
-                           <MonitorPlay className="w-4 h-4" /> Open Streaming Overlay
-                        </Link>
-                      </Button>
-                    )}
-                  </div>
-                  
-                  <Button variant="destructive" onClick={stopSharing} className="w-full h-12 rounded-2xl font-black">End Live Stream</Button>
+                  {peerId && (
+                    <Button asChild variant="outline" className="w-full h-12 rounded-2xl font-bold gap-2">
+                      <Link href={`/live/${peerId}/overlay`} target="_blank"><MonitorPlay className="w-4 h-4" /> Streaming Overlay</Link>
+                    </Button>
+                  )}
+                  <Button variant="destructive" onClick={stopSharing} className="w-full h-12 rounded-2xl font-black">End Stream</Button>
                 </div>
               )}
             </div>
@@ -474,10 +432,6 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
 
         <Dialog open={showSummary} onOpenChange={setShowSummary}>
           <DialogContent className="max-w-xl w-[95%] rounded-[2.5rem] max-h-[90dvh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="sr-only">Match Summary</DialogTitle>
-              <DialogDescription className="sr-only">A detailed summary of the match results, top performers, and statistics.</DialogDescription>
-            </DialogHeader>
             <MatchSummaryCard match={match} />
           </DialogContent>
         </Dialog>
@@ -486,7 +440,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           <AlertDialogContent className="w-[90%] rounded-[2rem]">
             <AlertDialogHeader>
               <AlertDialogTitle className="text-2xl font-black text-center">It&apos;s a Tie!</AlertDialogTitle>
-              <AlertDialogDescription className="text-center">Scores are level. Settle with a <strong>Super Over</strong>?</AlertDialogDescription>
+              <AlertDialogDescription className="text-center">Settle with a <strong>Super Over</strong>?</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter className="flex-col sm:flex-row gap-3">
               <AlertDialogCancel className="rounded-2xl border-2 font-bold h-12 flex-1">Finish as Tie</AlertDialogCancel>

@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { use, useState } from 'react';
+import React, { use, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useLocalTournament, useLocalMatches, saveTournamentToLocalStorage, saveMatchToLocalStorage } from '@/lib/storage';
 import { calculateTournamentStandings } from '@/lib/match-utils';
-import { ChevronLeft, Trophy, Star, ChevronRight, Plus, PlayCircle, Clock, Zap, Target, Award, Flame, Swords } from 'lucide-react';
+import { ChevronLeft, Trophy, Star, ChevronRight, Plus, PlayCircle, Clock, Zap, Target, Award, Flame } from 'lucide-react';
 import Link from 'next/link';
 import { Match, Inning, Fixture, Team } from '@/types/cricket';
 import { useUser } from '@/firebase';
@@ -22,120 +22,92 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
   const { data: allMatches, loading: mLoading } = useLocalMatches();
   const [activeTab, setActiveTab] = useState('standings');
 
+  // Memoize tournament-specific matches and names
+  const tournamentMatches = useMemo(() => 
+    allMatches.filter(m => m.tournamentId === tournament?.id),
+    [allMatches, tournament?.id]
+  );
+  
+  const teamNames = useMemo(() => 
+    tournament?.teams.map((t: Team | string) => typeof t === 'string' ? t : t.name) || [],
+    [tournament?.teams]
+  );
+
+  const standings = useMemo(() => 
+    calculateTournamentStandings(tournamentMatches, teamNames),
+    [tournamentMatches, teamNames]
+  );
+
+  // Memoize heavy player statistics calculations
+  const playerStats = useMemo(() => {
+    const stats: Record<string, { runs: number; wickets: number; team: string; sixes: number; fours: number; balls: number }> = {};
+    const innings: Array<{ name: string; runs: number; balls: number; team: string }> = [];
+    const spells: Array<{ name: string; wickets: number; runsConceded: number; team: string }> = [];
+
+    tournamentMatches.forEach(m => {
+      m.innings.forEach(inn => {
+        if (!inn) return;
+        Object.values(inn.batsmen).forEach(b => {
+          if (!stats[b.id]) stats[b.id] = { runs: 0, wickets: 0, team: inn.battingTeam, sixes: 0, fours: 0, balls: 0 };
+          stats[b.id].runs += b.runs;
+          stats[b.id].sixes += (b.sixes || 0);
+          stats[b.id].fours += (b.fours || 0);
+          stats[b.id].balls += (b.balls || 0);
+          if (b.balls > 0) innings.push({ name: b.name, runs: b.runs, balls: b.balls, team: inn.battingTeam });
+        });
+        Object.values(inn.bowlers).forEach(bw => {
+          if (!stats[bw.id]) stats[bw.id] = { runs: 0, wickets: 0, team: inn.bowlingTeam, sixes: 0, fours: 0, balls: 0 };
+          stats[bw.id].wickets += bw.wickets;
+          const totalBalls = (bw.overs * 6) + bw.balls;
+          if (totalBalls > 0) spells.push({ name: bw.name, wickets: bw.wickets, runsConceded: bw.runsConceded, team: inn.bowlingTeam });
+        });
+      });
+    });
+
+    const entries = Object.entries(stats);
+    return {
+      topScorers: entries.sort((a, b) => b[1].runs - a[1].runs).slice(0, 5),
+      topWicketTakers: entries.sort((a, b) => b[1].wickets - a[1].wickets).slice(0, 5),
+      highestInnings: innings.sort((a, b) => b.runs - a.runs).slice(0, 5),
+      bestSpells: spells.sort((a, b) => b.wickets - a.wickets || a.runsConceded - b.runsConceded).slice(0, 5),
+      topStrikeRates: entries
+        .filter(([_, s]) => s.balls >= 10)
+        .map(([id, s]) => ({ id, name: s.team, sr: parseFloat(((s.runs / s.balls) * 100).toFixed(2)), ...s }))
+        .sort((a, b) => b.sr - a.sr)
+        .slice(0, 5),
+      boundaryKings: entries
+        .sort((a, b) => (b[1].sixes * 6 + b[1].fours * 4) - (a[1].sixes * 6 + a[1].fours * 4))
+        .slice(0, 5)
+    };
+  }, [tournamentMatches]);
+
   if (tLoading || mLoading) return <div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
   if (!tournament) return <div className="min-h-screen flex items-center justify-center">Tournament Not Found</div>;
 
-  const tournamentMatches = allMatches.filter(m => m.tournamentId === tournament.id);
-  const teamNames = tournament.teams.map((t: Team | string) => typeof t === 'string' ? t : t.name);
-  const standings = calculateTournamentStandings(tournamentMatches, teamNames);
-
-  // Safely get settings
   const tSettings = tournament.settings || { overs: 20, playersPerTeam: 11, matchesPerTeam: 1 };
-
-  // Advanced Stats Calculation
-  const playerStats: Record<string, { runs: number; wickets: number; team: string; sixes: number; fours: number; balls: number }> = {};
-  const inningsPerformances: Array<{ name: string; runs: number; balls: number; team: string }> = [];
-  const bowlingSpells: Array<{ name: string; wickets: number; runsConceded: number; team: string }> = [];
-
-  tournamentMatches.forEach(m => {
-    m.innings.forEach(inn => {
-      if (!inn) return;
-      Object.values(inn.batsmen).forEach(b => {
-        if (!playerStats[b.name]) {
-          playerStats[b.name] = { runs: 0, wickets: 0, team: inn.battingTeam, sixes: 0, fours: 0, balls: 0 };
-        }
-        playerStats[b.name].runs += b.runs;
-        playerStats[b.name].sixes += (b.sixes || 0);
-        playerStats[b.name].fours += (b.fours || 0);
-        playerStats[b.name].balls += (b.balls || 0);
-        
-        if (b.balls > 0) {
-          inningsPerformances.push({ name: b.name, runs: b.runs, balls: b.balls, team: inn.battingTeam });
-        }
-      });
-      Object.values(inn.bowlers).forEach(bw => {
-        if (!playerStats[bw.name]) {
-          playerStats[bw.name] = { runs: 0, wickets: 0, team: inn.bowlingTeam, sixes: 0, fours: 0, balls: 0 };
-        }
-        playerStats[bw.name].wickets += bw.wickets;
-        
-        const balls = (bw.overs * 6) + bw.balls;
-        if (balls > 0) {
-          bowlingSpells.push({ name: bw.name, wickets: bw.wickets, runsConceded: bw.runsConceded, team: inn.bowlingTeam });
-        }
-      });
-    });
-  });
-
-  const topScorers = Object.entries(playerStats).sort((a, b) => b[1].runs - a[1].runs).slice(0, 5);
-  const topWicketTakers = Object.entries(playerStats).sort((a, b) => b[1].wickets - a[1].wickets).slice(0, 5);
-  
-  // Boundary Kings: Sorted by (sixes * 6) + (fours * 4)
-  const boundaryKings = Object.entries(playerStats)
-    .sort((a, b) => {
-      const pointsA = (a[1].sixes * 6) + (a[1].fours * 4);
-      const pointsB = (b[1].sixes * 6) + (b[1].fours * 4);
-      return pointsB - pointsA;
-    })
-    .slice(0, 5);
-
-  const highestInnings = [...inningsPerformances].sort((a, b) => b.runs - a.runs).slice(0, 5);
-  const bestSpells = [...bowlingSpells].sort((a, b) => b.wickets - a.wickets || a.runsConceded - b.runsConceded).slice(0, 5);
-  const topStrikeRates = Object.entries(playerStats)
-    .filter(([_, stats]) => stats.balls >= 10) // Min qualification
-    .map(([name, stats]) => ({ name, sr: parseFloat(((stats.runs / stats.balls) * 100).toFixed(2)), ...stats }))
-    .sort((a, b) => b.sr - a.sr)
-    .slice(0, 5);
 
   const startFixture = (fixture: Fixture) => {
     if (!user) return;
-    
     const teamAData = tournament.teams.find((t: Team | string) => (typeof t === 'string' ? t : t.name) === fixture.teamA) as Team;
     const teamBData = tournament.teams.find((t: Team | string) => (typeof t === 'string' ? t : t.name) === fixture.teamB) as Team;
 
     const id = Math.random().toString(36).substr(2, 9);
     const createInning = (batting: string, bowling: string): Inning => ({
-      battingTeam: batting,
-      bowlingTeam: bowling,
-      score: 0,
-      wickets: 0,
-      overs: 0,
-      ballsInOver: 0,
+      battingTeam: batting, bowlingTeam: bowling, score: 0, wickets: 0, overs: 0, ballsInOver: 0,
       extras: { wides: 0, noBalls: 0, byes: 0, legByes: 0, penalty: 0 },
-      balls: [],
-      batsmen: {},
-      bowlers: {},
-      fallOfWickets: []
+      balls: [], batsmen: {}, bowlers: {}, fallOfWickets: []
     });
 
     const newMatch: Match = {
-      id,
-      title: `${fixture.teamA} vs ${fixture.teamB}`,
-      format: 'Custom',
+      id, title: `${fixture.teamA} vs ${fixture.teamB}`, format: 'Custom',
       oversLimit: tSettings.overs,
-      teamA: { 
-        name: fixture.teamA, 
-        players: teamAData?.players || Array.from({length: tSettings.playersPerTeam}, (_, i) => `${fixture.teamA} Player ${i+1}`), 
-        color: teamAData?.color || '#2C5A37' 
-      },
-      teamB: { 
-        name: fixture.teamB, 
-        players: teamBData?.players || Array.from({length: tSettings.playersPerTeam}, (_, i) => `${fixture.teamB} Player ${i+1}`), 
-        color: teamBData?.color || '#1E40AF' 
-      },
-      status: 'live',
-      currentInning: 1,
-      innings: [createInning(fixture.teamA, fixture.teamB), null],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      ownerId: user.uid,
-      tournamentId: tournament.id
+      teamA: { name: fixture.teamA, players: teamAData?.players || [], color: teamAData?.color || '#2C5A37' },
+      teamB: { name: fixture.teamB, players: teamBData?.players || [], color: teamBData?.color || '#1E40AF' },
+      status: 'live', currentInning: 1, innings: [createInning(fixture.teamA, fixture.teamB), null],
+      createdAt: Date.now(), updatedAt: Date.now(), ownerId: user.uid, tournamentId: tournament.id
     };
 
-    const updatedFixtures = (tournament.fixtures || []).map(f => 
-      f.id === fixture.id ? { ...f, matchId: id, status: 'live' as any } : f
-    );
-    
+    const updatedFixtures = (tournament.fixtures || []).map(f => f.id === fixture.id ? { ...f, matchId: id, status: 'live' as any } : f);
     saveTournamentToLocalStorage({ ...tournament, fixtures: updatedFixtures });
     saveMatchToLocalStorage(newMatch);
     router.push(`/match/${id}`);
@@ -150,215 +122,92 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
            <div className="w-10" />
         </div>
         <h1 className="text-4xl font-black tracking-tighter">{tournament.name}</h1>
-        <div className="flex items-center justify-center gap-4 mt-2">
-           <span className="text-[10px] font-bold bg-black/20 px-3 py-1 rounded-full uppercase tracking-widest">{tSettings.overs} OVERS</span>
-           <span className="text-[10px] font-bold bg-black/20 px-3 py-1 rounded-full uppercase tracking-widest">{tSettings.playersPerTeam} PLAYERS</span>
-        </div>
       </header>
 
       <main className="max-w-5xl mx-auto p-4 pt-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 h-14 bg-white/50 border rounded-2xl p-1 overflow-x-auto">
-            <TabsTrigger value="standings" className="rounded-xl font-black text-[10px] sm:text-xs uppercase tracking-widest">Table</TabsTrigger>
-            <TabsTrigger value="fixtures" className="rounded-xl font-black text-[10px] sm:text-xs uppercase tracking-widest">Fixtures</TabsTrigger>
-            <TabsTrigger value="matches" className="rounded-xl font-black text-[10px] sm:text-xs uppercase tracking-widest">Results</TabsTrigger>
-            <TabsTrigger value="stats" className="rounded-xl font-black text-[10px] sm:text-xs uppercase tracking-widest">Stats</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4 h-14 bg-white/50 border rounded-2xl p-1">
+            <TabsTrigger value="standings" className="rounded-xl font-black text-[10px] sm:text-xs">Table</TabsTrigger>
+            <TabsTrigger value="fixtures" className="rounded-xl font-black text-[10px] sm:text-xs">Fixtures</TabsTrigger>
+            <TabsTrigger value="matches" className="rounded-xl font-black text-[10px] sm:text-xs">Results</TabsTrigger>
+            <TabsTrigger value="stats" className="rounded-xl font-black text-[10px] sm:text-xs">Stats</TabsTrigger>
           </TabsList>
 
           <TabsContent value="standings">
             <Card className="border-2 rounded-[2rem] overflow-hidden shadow-xl">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader className="bg-muted/50">
-                    <TableRow>
-                      <TableHead className="font-black text-[10px] uppercase">Team</TableHead>
-                      <TableHead className="text-center font-black text-[10px] uppercase">P</TableHead>
-                      <TableHead className="text-center font-black text-[10px] uppercase">W</TableHead>
-                      <TableHead className="text-center font-black text-[10px] uppercase">L</TableHead>
-                      <TableHead className="text-center font-black text-[10px] uppercase">NRR</TableHead>
-                      <TableHead className="text-center font-black text-[10px] uppercase">Pts</TableHead>
+              <Table>
+                <TableHeader className="bg-muted/50">
+                  <TableRow>
+                    <TableHead className="font-black text-[10px] uppercase">Team</TableHead>
+                    <TableHead className="text-center font-black text-[10px] uppercase">P</TableHead>
+                    <TableHead className="text-center font-black text-[10px] uppercase">W</TableHead>
+                    <TableHead className="text-center font-black text-[10px] uppercase">L</TableHead>
+                    <TableHead className="text-center font-black text-[10px] uppercase">NRR</TableHead>
+                    <TableHead className="text-center font-black text-[10px] uppercase">Pts</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {standings.map((s, i) => (
+                    <TableRow key={s.team} className={i < 4 ? 'bg-primary/5' : ''}>
+                      <TableCell className="font-black text-primary">{s.team}</TableCell>
+                      <TableCell className="text-center font-bold">{s.played}</TableCell>
+                      <TableCell className="text-center font-bold text-secondary">{s.won}</TableCell>
+                      <TableCell className="text-center font-bold text-destructive">{s.lost}</TableCell>
+                      <TableCell className="text-center font-bold">{s.nrr.toFixed(3)}</TableCell>
+                      <TableCell className="text-center font-black text-primary">{s.points}</TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {standings.map((s, i) => (
-                      <TableRow key={s.team} className={i < 4 ? 'bg-primary/5' : ''}>
-                        <TableCell className="font-black text-primary">{s.team}</TableCell>
-                        <TableCell className="text-center font-bold">{s.played}</TableCell>
-                        <TableCell className="text-center font-bold text-secondary">{s.won}</TableCell>
-                        <TableCell className="text-center font-bold text-destructive">{s.lost}</TableCell>
-                        <TableCell className="text-center font-bold">{s.nrr.toFixed(3)}</TableCell>
-                        <TableCell className="text-center font-black text-primary">{s.points}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                  ))}
+                </TableBody>
+              </Table>
             </Card>
           </TabsContent>
 
-          <TabsContent value="fixtures" className="space-y-4">
-             <div className="flex justify-between items-center mb-2">
-                <h3 className="font-black text-lg uppercase tracking-tight text-primary">Tournament Fixtures</h3>
-                <span className="text-[10px] font-bold text-muted-foreground uppercase">{ (tournament.fixtures || []).filter(f => !f.matchId).length} Upcoming</span>
-             </div>
+          <TabsContent value="fixtures">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {(tournament.fixtures || []).map((f) => (
-                   <Card key={f.id} className="border-2 rounded-2xl overflow-hidden group hover:shadow-lg transition-all">
-                      <CardContent className="p-5 flex justify-between items-center bg-white">
-                         <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-1">
-                               <Clock className="w-3 h-3 text-muted-foreground" />
-                               <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Scheduled Match</span>
-                            </div>
-                            <h4 className="font-black text-lg text-primary">{f.teamA} <span className="text-muted-foreground/30 font-bold italic text-sm">vs</span> {f.teamB}</h4>
-                         </div>
-                         {f.matchId ? (
-                            <Button variant="outline" size="sm" asChild className="rounded-xl border-2 font-bold h-10 px-5">
-                               <Link href={`/match/${f.matchId}`}>View Match</Link>
-                            </Button>
-                         ) : (
-                            <Button onClick={() => startFixture(f)} size="sm" className="rounded-xl font-black h-10 px-5 gap-2">
-                               <PlayCircle className="w-4 h-4" /> Start
-                            </Button>
-                         )}
-                      </CardContent>
+                   <Card key={f.id} className="border-2 rounded-2xl p-5 flex justify-between items-center bg-white">
+                      <div>
+                        <h4 className="font-black text-lg text-primary">{f.teamA} v {f.teamB}</h4>
+                      </div>
+                      {f.matchId ? <Button variant="outline" asChild><Link href={`/match/${f.matchId}`}>View</Link></Button> : <Button onClick={() => startFixture(f)}>Start</Button>}
                    </Card>
                 ))}
-                {(tournament.fixtures || []).length === 0 && (
-                   <div className="col-span-full py-20 text-center text-muted-foreground font-black uppercase text-xs opacity-40 border-4 border-dashed rounded-[2rem]">No fixtures generated.</div>
-                )}
              </div>
-          </TabsContent>
-
-          <TabsContent value="matches" className="space-y-6">
-            <div className="flex justify-between items-center">
-               <h3 className="font-black text-lg uppercase tracking-tight text-primary">Recent Results</h3>
-               <Link href={`/match/setup?tournamentId=${tournament.id}`}>
-                 <Button size="sm" variant="outline" className="rounded-full gap-2 font-bold border-2"><Plus className="w-4 h-4" /> Custom Match</Button>
-               </Link>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {tournamentMatches.filter(m => m.status === 'completed').map(m => (
-                <Link key={m.id} href={`/match/${m.id}`}>
-                  <Card className="hover:shadow-lg transition-all border-2 rounded-2xl group">
-                    <CardContent className="p-4 flex justify-between items-center">
-                       <div>
-                         <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Final Result</p>
-                         <h4 className="font-black text-primary">{m.teamA.name} v {m.teamB.name}</h4>
-                         <p className="text-[10px] font-bold text-secondary uppercase mt-1">{m.winner === 'Tie' ? 'Match Tied' : `${m.winner} Won`}</p>
-                       </div>
-                       <ChevronRight className="w-5 h-5 text-primary opacity-20 group-hover:opacity-100" />
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-              {tournamentMatches.filter(m => m.status === 'completed').length === 0 && (
-                <div className="col-span-full py-20 text-center text-muted-foreground font-black uppercase text-xs opacity-40 border-4 border-dashed rounded-[2rem]">No completed matches yet.</div>
-              )}
-            </div>
           </TabsContent>
 
           <TabsContent value="stats" className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-               {/* 1. Orange Cap (Most Runs) */}
-               <Card className="border-2 rounded-[1.5rem] overflow-hidden shadow-sm">
+               <Card className="border-2 rounded-[1.5rem] overflow-hidden">
                  <CardHeader className="bg-amber-500 text-white p-4"><CardTitle className="text-sm font-black flex items-center gap-2"><Star className="w-4 h-4" /> Orange Cap</CardTitle></CardHeader>
                  <CardContent className="p-0">
                     <Table>
                       <TableBody>
-                        {topScorers.map(([name, stats], i) => (
-                          <TableRow key={name}>
-                            <TableCell className="p-3 font-bold text-xs"><span className="opacity-40 mr-2">{i+1}</span>{name}</TableCell>
-                            <TableCell className="p-3 text-right font-black">{stats.runs} <span className="text-[10px] opacity-40">R</span></TableCell>
-                          </TableRow>
+                        {playerStats.topScorers.map(([id, s], i) => (
+                          <TableRow key={id}><TableCell className="p-3 font-bold text-xs">{s.team}</TableCell><TableCell className="p-3 text-right font-black">{s.runs}</TableCell></TableRow>
                         ))}
                       </TableBody>
                     </Table>
                  </CardContent>
                </Card>
-
-               {/* 2. Purple Cap (Most Wickets) */}
-               <Card className="border-2 rounded-[1.5rem] overflow-hidden shadow-sm">
+               <Card className="border-2 rounded-[1.5rem] overflow-hidden">
                  <CardHeader className="bg-primary text-white p-4"><CardTitle className="text-sm font-black flex items-center gap-2"><Trophy className="w-4 h-4" /> Purple Cap</CardTitle></CardHeader>
                  <CardContent className="p-0">
                     <Table>
                       <TableBody>
-                        {topWicketTakers.map(([name, stats], i) => (
-                          <TableRow key={name}>
-                            <TableCell className="p-3 font-bold text-xs"><span className="opacity-40 mr-2">{i+1}</span>{name}</TableCell>
-                            <TableCell className="p-3 text-right font-black">{stats.wickets} <span className="text-[10px] opacity-40">W</span></TableCell>
-                          </TableRow>
+                        {playerStats.topWicketTakers.map(([id, s], i) => (
+                          <TableRow key={id}><TableCell className="p-3 font-bold text-xs">{s.team}</TableCell><TableCell className="p-3 text-right font-black">{s.wickets}</TableCell></TableRow>
                         ))}
                       </TableBody>
                     </Table>
                  </CardContent>
                </Card>
-
-               {/* 3. Highest Innings Score */}
-               <Card className="border-2 rounded-[1.5rem] overflow-hidden shadow-sm">
-                 <CardHeader className="bg-rose-600 text-white p-4"><CardTitle className="text-sm font-black flex items-center gap-2"><Flame className="w-4 h-4" /> Highest Innings</CardTitle></CardHeader>
-                 <CardContent className="p-0">
-                    <Table>
-                      <TableBody>
-                        {highestInnings.map((p, i) => (
-                          <TableRow key={i}>
-                            <TableCell className="p-3 font-bold text-xs"><span className="opacity-40 mr-2">{i+1}</span>{p.name}</TableCell>
-                            <TableCell className="p-3 text-right font-black">{p.runs} <span className="text-[10px] opacity-40">({p.balls})</span></TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                 </CardContent>
-               </Card>
-
-               {/* 4. Best Bowling Spells */}
-               <Card className="border-2 rounded-[1.5rem] overflow-hidden shadow-sm">
-                 <CardHeader className="bg-indigo-600 text-white p-4"><CardTitle className="text-sm font-black flex items-center gap-2"><Target className="w-4 h-4" /> Top Spells</CardTitle></CardHeader>
-                 <CardContent className="p-0">
-                    <Table>
-                      <TableBody>
-                        {bestSpells.map((s, i) => (
-                          <TableRow key={i}>
-                            <TableCell className="p-3 font-bold text-xs"><span className="opacity-40 mr-2">{i+1}</span>{s.name}</TableCell>
-                            <TableCell className="p-3 text-right font-black">{s.wickets}/{s.runsConceded}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                 </CardContent>
-               </Card>
-
-               {/* 5. Strike Rate Kings */}
-               <Card className="border-2 rounded-[1.5rem] overflow-hidden shadow-sm">
-                 <CardHeader className="bg-emerald-600 text-white p-4"><CardTitle className="text-sm font-black flex items-center gap-2"><Zap className="w-4 h-4" /> SR Kings</CardTitle></CardHeader>
-                 <CardContent className="p-0">
-                    <Table>
-                      <TableBody>
-                        {topStrikeRates.map((p, i) => (
-                          <TableRow key={p.name}>
-                            <TableCell className="p-3 font-bold text-xs"><span className="opacity-40 mr-2">{i+1}</span>{p.name}</TableCell>
-                            <TableCell className="p-3 text-right font-black">{p.sr}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                 </CardContent>
-               </Card>
-
-               {/* 6. Boundary Kings (Weighted Sixes/Fours) */}
-               <Card className="border-2 rounded-[1.5rem] overflow-hidden shadow-sm">
+               <Card className="border-2 rounded-[1.5rem] overflow-hidden">
                  <CardHeader className="bg-slate-800 text-white p-4"><CardTitle className="text-sm font-black flex items-center gap-2"><Award className="w-4 h-4" /> Boundary Kings</CardTitle></CardHeader>
                  <CardContent className="p-0">
                     <Table>
                       <TableBody>
-                        {boundaryKings.map(([name, stats], i) => (
-                          <TableRow key={name}>
-                            <TableCell className="p-3 font-bold text-xs"><span className="opacity-40 mr-2">{i+1}</span>{name}</TableCell>
-                            <TableCell className="p-3 text-right font-black">
-                               <span className="text-amber-500 mr-2">{stats.sixes} <span className="text-[8px] uppercase">6s</span></span>
-                               <span className="text-blue-500">{stats.fours} <span className="text-[8px] uppercase">4s</span></span>
-                            </TableCell>
-                          </TableRow>
+                        {playerStats.boundaryKings.map(([id, s]) => (
+                          <TableRow key={id}><TableCell className="p-3 font-bold text-xs">{s.team}</TableCell><TableCell className="p-3 text-right font-black">{s.sixes}s / {s.fours}f</TableCell></TableRow>
                         ))}
                       </TableBody>
                     </Table>

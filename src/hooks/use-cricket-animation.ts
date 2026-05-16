@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Match, Inning, PlayerStats } from '@/types/cricket';
+import { Match } from '@/types/cricket';
 
 export type CricketAnimationEvent = 
   | 'FOUR' 
@@ -18,26 +18,41 @@ export interface AnimationData {
   runs?: number;
 }
 
+/**
+ * useCricketAnimation Hook
+ * Optimized to detect match events without expensive deep cloning.
+ */
 export function useCricketAnimation(match: Match | null) {
   const [activeEvent, setActiveEvent] = useState<AnimationData | null>(null);
-  const prevMatchRef = useRef<Match | null>(null);
+  
+  // Track specific metrics instead of the whole object
+  const lastProcessedInningRef = useRef<number | null>(null);
+  const lastProcessedBallCountRef = useRef<number>(0);
+  const lastProcessedScoresRef = useRef<Record<string, number>>({});
 
   useEffect(() => {
     if (!match) return;
 
-    const prevMatch = prevMatchRef.current;
-    if (!prevMatch) {
-      prevMatchRef.current = JSON.parse(JSON.stringify(match));
+    const currentInningIdx = match.currentInning - 1;
+    const currentInning = match.innings[currentInningIdx];
+
+    if (!currentInning) return;
+
+    // Reset markers if we've switched innings
+    if (lastProcessedInningRef.current !== currentInningIdx) {
+      lastProcessedInningRef.current = currentInningIdx;
+      lastProcessedBallCountRef.current = currentInning.balls.length;
+      
+      const scores: Record<string, number> = {};
+      Object.values(currentInning.batsmen).forEach(b => {
+        scores[b.id] = b.runs;
+      });
+      lastProcessedScoresRef.current = scores;
       return;
     }
 
-    const currentInning = match.innings[match.currentInning - 1];
-    const prevInning = prevMatch.innings[prevMatch.currentInning - 1];
-
-    if (!currentInning || !prevInning) return;
-
-    // 1. Detect Boundaries and Wickets from the latest ball
-    if (currentInning.balls.length > prevInning.balls.length) {
+    // Only process if a new ball was added
+    if (currentInning.balls.length > lastProcessedBallCountRef.current) {
       const lastBall = currentInning.balls[currentInning.balls.length - 1];
       const batsman = currentInning.batsmen[lastBall.batsmanId];
 
@@ -49,10 +64,9 @@ export function useCricketAnimation(match: Match | null) {
         setActiveEvent({ type: 'SIX', playerName: lastBall.batsmanId });
       }
 
-      // 2. Detect Milestones (50s and 100s)
+      // Detect Milestones
       if (batsman) {
-        const prevBatsman = prevInning.batsmen[lastBall.batsmanId];
-        const prevRuns = prevBatsman?.runs || 0;
+        const prevRuns = lastProcessedScoresRef.current[batsman.id] || 0;
         const currentRuns = batsman.runs;
 
         if (prevRuns < 100 && currentRuns >= 100) {
@@ -60,10 +74,13 @@ export function useCricketAnimation(match: Match | null) {
         } else if (prevRuns < 50 && currentRuns >= 50) {
           setActiveEvent({ type: 'FIFTY', playerName: batsman.name, runs: currentRuns });
         }
+        
+        // Update local score tracking
+        lastProcessedScoresRef.current[batsman.id] = currentRuns;
       }
+      
+      lastProcessedBallCountRef.current = currentInning.balls.length;
     }
-
-    prevMatchRef.current = JSON.parse(JSON.stringify(match));
   }, [match]);
 
   const clearEvent = () => setActiveEvent(null);
