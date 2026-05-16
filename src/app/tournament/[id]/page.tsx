@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useLocalTournament, useLocalMatches, saveTournamentToLocalStorage, saveMatchToLocalStorage } from '@/lib/storage';
 import { calculateTournamentStandings } from '@/lib/match-utils';
-import { ChevronLeft, Trophy, Star, ChevronRight, Plus, PlayCircle, Clock, Zap, Target, Award, Flame } from 'lucide-react';
+import { ChevronLeft, Trophy, Star, ChevronRight, Plus, PlayCircle, Clock, Zap, Target, Award, Flame, Calendar, LayoutGrid } from 'lucide-react';
 import Link from 'next/link';
 import { Match, Inning, Fixture, Team } from '@/types/cricket';
 import { useUser } from '@/firebase';
@@ -40,7 +40,7 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
 
   // Memoize heavy player statistics calculations
   const playerStats = useMemo(() => {
-    const stats: Record<string, { runs: number; wickets: number; team: string; sixes: number; fours: number; balls: number }> = {};
+    const stats: Record<string, { name: string; runs: number; wickets: number; team: string; sixes: number; fours: number; balls: number }> = {};
     const innings: Array<{ name: string; runs: number; balls: number; team: string }> = [];
     const spells: Array<{ name: string; wickets: number; runsConceded: number; team: string }> = [];
 
@@ -48,7 +48,7 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
       m.innings.forEach(inn => {
         if (!inn) return;
         Object.values(inn.batsmen).forEach(b => {
-          if (!stats[b.id]) stats[b.id] = { runs: 0, wickets: 0, team: inn.battingTeam, sixes: 0, fours: 0, balls: 0 };
+          if (!stats[b.id]) stats[b.id] = { name: b.name, runs: 0, wickets: 0, team: inn.battingTeam, sixes: 0, fours: 0, balls: 0 };
           stats[b.id].runs += b.runs;
           stats[b.id].sixes += (b.sixes || 0);
           stats[b.id].fours += (b.fours || 0);
@@ -56,7 +56,7 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
           if (b.balls > 0) innings.push({ name: b.name, runs: b.runs, balls: b.balls, team: inn.battingTeam });
         });
         Object.values(inn.bowlers).forEach(bw => {
-          if (!stats[bw.id]) stats[bw.id] = { runs: 0, wickets: 0, team: inn.bowlingTeam, sixes: 0, fours: 0, balls: 0 };
+          if (!stats[bw.id]) stats[bw.id] = { name: bw.name, runs: 0, wickets: 0, team: inn.bowlingTeam, sixes: 0, fours: 0, balls: 0 };
           stats[bw.id].wickets += bw.wickets;
           const totalBalls = (bw.overs * 6) + bw.balls;
           if (totalBalls > 0) spells.push({ name: bw.name, wickets: bw.wickets, runsConceded: bw.runsConceded, team: inn.bowlingTeam });
@@ -72,7 +72,7 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
       bestSpells: spells.sort((a, b) => b.wickets - a.wickets || a.runsConceded - b.runsConceded).slice(0, 5),
       topStrikeRates: entries
         .filter(([_, s]) => s.balls >= 10)
-        .map(([id, s]) => ({ id, name: s.team, sr: parseFloat(((s.runs / s.balls) * 100).toFixed(2)), ...s }))
+        .map(([id, s]) => ({ id, team: s.team, name: s.name, sr: parseFloat(((s.runs / s.balls) * 100).toFixed(2)), ...s }))
         .sort((a, b) => b.sr - a.sr)
         .slice(0, 5),
       boundaryKings: entries
@@ -172,6 +172,46 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
                       {f.matchId ? <Button variant="outline" asChild><Link href={`/match/${f.matchId}`}>View</Link></Button> : <Button onClick={() => startFixture(f)}>Start</Button>}
                    </Card>
                 ))}
+                {(tournament.fixtures || []).length === 0 && (
+                   <div className="col-span-full py-12 text-center text-muted-foreground font-bold">No fixtures generated.</div>
+                )}
+             </div>
+          </TabsContent>
+
+          <TabsContent value="matches">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {tournamentMatches.length === 0 ? (
+                  <Card className="col-span-full border-dashed border-4 py-20 text-center flex flex-col items-center gap-4 bg-transparent rounded-3xl">
+                    <Calendar className="w-12 h-12 text-muted-foreground/30" />
+                    <p className="text-lg font-bold text-muted-foreground">No matches played yet.</p>
+                  </Card>
+                ) : (
+                  tournamentMatches.map((match) => (
+                    <Link key={match.id} href={`/match/${match.id}`}>
+                      <Card className="hover:shadow-xl transition-all border-2 rounded-3xl overflow-hidden bg-white">
+                        <CardContent className="p-6">
+                          <div className="flex justify-between items-start mb-4">
+                            <div>
+                              <span className="bg-primary/10 text-primary px-2.5 py-0.5 rounded-full text-[10px] uppercase font-black tracking-widest">{match.format}</span>
+                              <h3 className="text-xl font-black text-primary mt-2">{match.teamA.name} v {match.teamB.name}</h3>
+                            </div>
+                            <span className="text-[10px] text-muted-foreground font-bold">{new Date(match.createdAt).toLocaleDateString()}</span>
+                          </div>
+                          {match.innings[match.currentInning - 1] && (
+                            <p className="text-3xl font-black mb-4">
+                              {match.innings[match.currentInning - 1]?.score}/{match.innings[match.currentInning - 1]?.wickets}
+                              <span className="text-sm font-bold text-muted-foreground ml-2">({match.innings[match.currentInning - 1]?.overs}.{match.innings[match.currentInning - 1]?.ballsInOver} ov)</span>
+                            </p>
+                          )}
+                          <div className="flex items-center justify-between pt-4 border-t">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-secondary">{match.status === 'completed' ? match.winner + ' Won' : 'LIVE NOW'}</p>
+                            <ChevronRight className="w-4 h-4 text-primary opacity-20" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  ))
+                )}
              </div>
           </TabsContent>
 
@@ -183,7 +223,13 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
                     <Table>
                       <TableBody>
                         {playerStats.topScorers.map(([id, s], i) => (
-                          <TableRow key={id}><TableCell className="p-3 font-bold text-xs">{s.team}</TableCell><TableCell className="p-3 text-right font-black">{s.runs}</TableCell></TableRow>
+                          <TableRow key={id}>
+                            <TableCell className="p-3">
+                              <p className="font-black text-sm">{s.name}</p>
+                              <p className="text-[10px] font-bold text-muted-foreground uppercase">{s.team}</p>
+                            </TableCell>
+                            <TableCell className="p-3 text-right font-black text-lg">{s.runs}</TableCell>
+                          </TableRow>
                         ))}
                       </TableBody>
                     </Table>
@@ -195,7 +241,13 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
                     <Table>
                       <TableBody>
                         {playerStats.topWicketTakers.map(([id, s], i) => (
-                          <TableRow key={id}><TableCell className="p-3 font-bold text-xs">{s.team}</TableCell><TableCell className="p-3 text-right font-black">{s.wickets}</TableCell></TableRow>
+                          <TableRow key={id}>
+                            <TableCell className="p-3">
+                              <p className="font-black text-sm">{s.name}</p>
+                              <p className="text-[10px] font-bold text-muted-foreground uppercase">{s.team}</p>
+                            </TableCell>
+                            <TableCell className="p-3 text-right font-black text-lg">{s.wickets}</TableCell>
+                          </TableRow>
                         ))}
                       </TableBody>
                     </Table>
@@ -207,7 +259,15 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
                     <Table>
                       <TableBody>
                         {playerStats.boundaryKings.map(([id, s]) => (
-                          <TableRow key={id}><TableCell className="p-3 font-bold text-xs">{s.team}</TableCell><TableCell className="p-3 text-right font-black">{s.sixes}s / {s.fours}f</TableCell></TableRow>
+                          <TableRow key={id}>
+                            <TableCell className="p-3">
+                              <p className="font-black text-sm">{s.name}</p>
+                              <p className="text-[10px] font-bold text-muted-foreground uppercase">{s.team}</p>
+                            </TableCell>
+                            <TableCell className="p-3 text-right font-black text-sm">
+                              {s.sixes} <span className="text-[10px] text-muted-foreground">6s</span> / {s.fours} <span className="text-[10px] text-muted-foreground">4s</span>
+                            </TableCell>
+                          </TableRow>
                         ))}
                       </TableBody>
                     </Table>
