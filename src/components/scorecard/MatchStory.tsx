@@ -16,13 +16,15 @@ export default function MatchStory({ match }: MatchStoryProps) {
   match.innings.forEach((inning, idx) => {
     if (!inning) return;
 
+    const inningLabel = idx < 2 ? `${idx === 0 ? 'First' : 'Second'} Inning` : `Super Over Inning ${idx - 1}`;
+
     // Inning Start
     events.push({
       type: 'header',
-      title: `${idx === 0 ? 'First' : 'Second'} Inning Starts`,
+      title: `${inningLabel} Starts`,
       subtitle: `${inning.battingTeam} to bat`,
       icon: <Clock className="w-4 h-4" />,
-      time: match.createdAt + (idx * 3600000) // Rough approximation for sorting
+      time: match.createdAt + (idx * 3600000)
     });
 
     // Group balls by over to find significant moments

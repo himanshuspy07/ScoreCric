@@ -18,7 +18,7 @@ interface ScoringInterfaceProps {
 export default function ScoringInterface({ match, onUpdate }: ScoringInterfaceProps) {
   const currentInning = match.innings[match.currentInning - 1] as Inning;
   
-  // Simplified team identification for standard and Super Over matches
+  const isSuperOver = match.currentInning > 2;
   const battingTeamPlayers = currentInning.battingTeam === match.teamA.name ? match.teamA : match.teamB;
   const bowlingTeamPlayers = battingTeamPlayers.name === match.teamA.name ? match.teamB : match.teamA;
 
@@ -60,7 +60,7 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
       return;
     }
 
-    const newInning = JSON.parse(JSON.stringify(currentInning)); // Deep clone
+    const newInning = JSON.parse(JSON.stringify(currentInning));
     let runsToAdd = runs;
     if (options.isWide || options.isNoBall) {
       runsToAdd += 1;
@@ -239,15 +239,17 @@ export default function ScoringInterface({ match, onUpdate }: ScoringInterfacePr
 
   const isControlsDisabled = !strikerId || !nonStrikerId || !bowlerId;
 
-  const target = match.innings[0] ? match.innings[0].score + 1 : 0;
-  const runsNeeded = target - currentInning.score;
-  const totalPossibleBalls = match.oversLimit * 6;
+  const targetIdx = match.currentInning === 2 ? 0 : (match.currentInning === 4 ? 2 : -1);
+  const target = targetIdx !== -1 ? match.innings[targetIdx].score + 1 : 0;
+  const runsNeeded = target > 0 ? target - currentInning.score : 0;
+  const maxOvers = match.currentInning > 2 ? 1 : match.oversLimit;
+  const totalPossibleBalls = maxOvers * 6;
   const ballsBowled = currentInning.overs * 6 + currentInning.ballsInOver;
   const ballsRemaining = Math.max(0, totalPossibleBalls - ballsBowled);
 
   return (
     <div className="space-y-6">
-      {match.currentInning === 2 && match.innings[0] && (
+      {target > 0 && (
         <Card className="border-amber-200 bg-amber-50/50 shadow-sm rounded-2xl overflow-hidden animate-in fade-in slide-in-from-top-4 duration-500">
            <CardContent className="p-4 flex justify-between items-center">
               <div className="flex items-center gap-3">

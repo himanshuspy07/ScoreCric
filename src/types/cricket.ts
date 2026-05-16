@@ -93,8 +93,8 @@ export interface Match {
   tossWinner?: string;
   tossChoice?: 'bat' | 'bowl';
   status: MatchStatus;
-  currentInning: 1 | 2;
-  innings: [Inning, Inning | null];
+  currentInning: number;
+  innings: Inning[];
   manOfTheMatch?: string;
   winner?: string;
   createdAt: number;

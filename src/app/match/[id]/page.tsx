@@ -52,8 +52,6 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
   const handleStartSuperOver = useCallback(() => {
     if (!match) return;
     
-    const superOverId = `so-${match.id}-${Date.now()}`;
-    
     const createInning = (batting: string, bowling: string): Inning => ({
       battingTeam: batting,
       bowlingTeam: bowling,
@@ -68,31 +66,26 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       fallOfWickets: []
     });
 
-    const teamBattedSecond = match.innings[1]!.battingTeam;
-    const teamBattedFirst = match.innings[0]!.battingTeam;
+    const teamBattedSecond = match.innings[1].battingTeam;
+    const teamBattedFirst = match.innings[0].battingTeam;
 
-    const superOverMatch: Match = {
+    const updatedMatch: Match = {
       ...match,
-      id: superOverId,
-      title: match.title,
       isSuperOver: true,
-      parentMatchId: match.id,
-      oversLimit: 1,
       status: 'live',
-      currentInning: 1,
-      innings: [createInning(teamBattedSecond, teamBattedFirst), null],
+      currentInning: 3,
+      innings: [
+        ...match.innings, 
+        createInning(teamBattedSecond, teamBattedFirst)
+      ],
       winner: undefined,
-      manOfTheMatch: undefined,
-      createdAt: Date.now(),
       updatedAt: Date.now(),
-      tossWinner: teamBattedSecond,
-      tossChoice: 'bat'
     };
 
-    saveMatchToLocalStorage(superOverMatch);
-    toast({ title: "Super Over Started", description: "A high-stakes 1-over tiebreaker has been created." });
-    router.push(`/match/${superOverId}`);
-  }, [match, router, toast]);
+    saveMatchToLocalStorage(updatedMatch);
+    toast({ title: "Super Over Started", description: "Inning 3 (Super Over) initiated in the same match." });
+    setActiveTab('score');
+  }, [match, toast]);
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-[#F3FAF4]">
@@ -114,69 +107,89 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
   const brandingColor = battingTeamObj.color || '#2C5A37';
 
   const totalBalls = (currentInning.overs * 6) + currentInning.ballsInOver;
-  const matchTotalBalls = match.oversLimit * 6;
+  const matchTotalBalls = (match.currentInning > 2 ? 1 : match.oversLimit) * 6;
   const ballsRemaining = Math.max(0, matchTotalBalls - totalBalls);
-  const targetScore = (match.innings[0]?.score || 0) + 1;
-  const rrr = getRequiredRunRate(targetScore, currentInning.score, ballsRemaining);
+  
+  const targetScoreIdx = match.currentInning === 2 ? 0 : (match.currentInning === 4 ? 2 : -1);
+  const targetScore = targetScoreIdx !== -1 ? (match.innings[targetScoreIdx]?.score || 0) + 1 : 0;
+  
+  const rrr = targetScore > 0 ? getRequiredRunRate(targetScore, currentInning.score, ballsRemaining) : null;
 
   const handleScoreUpdate = (updatedInning: Inning) => {
     if (user && user.uid !== match.ownerId) return;
 
     const updatedMatch: Match = {
       ...match,
-      innings: match.currentInning === 1 
-        ? [updatedInning, match.innings[1]] 
-        : [match.innings[0], updatedInning],
+      innings: match.innings.map((inn, idx) => 
+        idx === match.currentInning - 1 ? updatedInning : inn
+      ),
       updatedAt: Date.now()
     };
     
     const currentBattingTeam = updatedInning.battingTeam === match.teamA.name ? match.teamA : match.teamB;
-    const maxWickets = match.isSuperOver ? 2 : currentBattingTeam.players.length - 1;
+    const maxWickets = match.currentInning > 2 ? 2 : currentBattingTeam.players.length - 1;
+    const maxOvers = match.currentInning > 2 ? 1 : match.oversLimit;
     
-    const oversFinished = updatedInning.overs >= match.oversLimit;
+    const oversFinished = updatedInning.overs >= maxOvers;
     const allOut = updatedInning.wickets >= maxWickets;
-    const targetAchieved = match.currentInning === 2 && updatedInning.score > (match.innings[0]?.score || 0);
+    const targetAchieved = (match.currentInning === 2 || match.currentInning === 4) && updatedInning.score >= targetScore;
 
     if (oversFinished || allOut || targetAchieved) {
       if (match.currentInning === 1) {
-        if (!match.innings[1]) {
-          const nextInning: Inning = {
-            battingTeam: updatedInning.bowlingTeam,
-            bowlingTeam: updatedInning.battingTeam,
-            score: 0,
-            wickets: 0,
-            overs: 0,
-            ballsInOver: 0,
-            extras: { wides: 0, noBalls: 0, byes: 0, legByes: 0, penalty: 0 },
-            balls: [],
-            batsmen: {},
-            bowlers: {},
-            fallOfWickets: []
-          };
-          updatedMatch.currentInning = 2;
-          updatedMatch.innings[1] = nextInning;
-          
-          const reason = allOut ? "Team All Out!" : (oversFinished ? "Overs Completed!" : "Inning Finished!");
-          toast({ title: reason, description: "First inning completed. Start second inning scoring." });
-        }
+        const nextInning: Inning = {
+          battingTeam: updatedInning.bowlingTeam,
+          bowlingTeam: updatedInning.battingTeam,
+          score: 0,
+          wickets: 0,
+          overs: 0,
+          ballsInOver: 0,
+          extras: { wides: 0, noBalls: 0, byes: 0, legByes: 0, penalty: 0 },
+          balls: [],
+          batsmen: {},
+          bowlers: {},
+          fallOfWickets: []
+        };
+        updatedMatch.currentInning = 2;
+        updatedMatch.innings.push(nextInning);
+        toast({ title: "Inning Finished", description: "Start second inning scoring." });
+      } else if (match.currentInning === 3) {
+        const nextInning: Inning = {
+          battingTeam: updatedInning.bowlingTeam,
+          bowlingTeam: updatedInning.battingTeam,
+          score: 0,
+          wickets: 0,
+          overs: 0,
+          ballsInOver: 0,
+          extras: { wides: 0, noBalls: 0, byes: 0, legByes: 0, penalty: 0 },
+          balls: [],
+          batsmen: {},
+          bowlers: {},
+          fallOfWickets: []
+        };
+        updatedMatch.currentInning = 4;
+        updatedMatch.innings.push(nextInning);
+        toast({ title: "Super Over Halfway", description: "Final chase starts now." });
       } else {
         updatedMatch.status = 'completed';
-        const score1 = match.innings[0]!.score;
+        const finalInningIdx = match.currentInning - 1;
+        const opponentInningIdx = match.currentInning - 2;
+        
+        const score1 = match.innings[opponentInningIdx].score;
         const score2 = updatedInning.score;
+        
         if (score2 > score1) {
           updatedMatch.winner = updatedInning.battingTeam;
         } else if (score1 > score2) {
           updatedMatch.winner = updatedInning.bowlingTeam;
         } else {
           updatedMatch.winner = 'Tie';
-          if (!match.isSuperOver) {
+          if (match.currentInning === 2) {
             setShowTieDialog(true);
           }
         }
         
         updatedMatch.manOfTheMatch = calculatePlayerOfTheMatch(updatedMatch);
-        const endReason = allOut ? "All Out!" : (oversFinished ? "Overs Finished!" : "Target Reached!");
-        toast({ title: "Match Completed", description: updatedMatch.winner === 'Tie' ? "Match Tied!" : `${endReason} ${updatedMatch.winner} Won!` });
+        toast({ title: "Match Completed", description: updatedMatch.winner === 'Tie' ? "Match Tied!" : `${updatedMatch.winner} Won!` });
         setShowSummary(true);
       }
     }
@@ -196,7 +209,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       <div className="min-h-screen bg-[#F3FAF4] pb-24">
         <header 
           className={`sticky top-0 z-40 text-primary-foreground p-3 sm:p-5 shadow-lg transition-colors duration-500`}
-          style={{ backgroundColor: match.isSuperOver ? '#000' : brandingColor }}
+          style={{ backgroundColor: match.currentInning > 2 ? '#000' : brandingColor }}
         >
           <div className="flex items-center justify-between mb-4">
             <Button variant="ghost" size="icon" className="hover:bg-white/10" onClick={() => router.push('/')}>
@@ -204,12 +217,12 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
             </Button>
             <div className="text-center">
               <h2 className="text-[10px] font-black opacity-60 uppercase tracking-[0.2em] flex items-center justify-center gap-2">
-                {match.isSuperOver && <Swords className="w-3 h-3 text-amber-500" />}
-                {match.isSuperOver ? "⚔️ SUPER OVER" : match.title}
-                {match.isSuperOver && <Swords className="w-3 h-3 text-amber-500" />}
+                {match.currentInning > 2 && <Swords className="w-3 h-3 text-amber-500" />}
+                {match.currentInning > 2 ? "⚔️ SUPER OVER" : match.title}
+                {match.currentInning > 2 && <Swords className="w-3 h-3 text-amber-500" />}
               </h2>
               <p className="text-xs font-bold bg-black/10 px-3 py-0.5 rounded-full mt-1 uppercase tracking-tighter">
-                {match.isSuperOver ? "Sudden Death Tiebreaker" : `${match.format} • ${match.oversLimit} OVERS`}
+                {match.currentInning > 2 ? `INNING ${match.currentInning}` : `${match.format} • ${match.oversLimit} OVERS`}
               </p>
             </div>
             <div className="flex gap-2">
@@ -228,7 +241,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                 </Button>
               )}
               <Button variant="ghost" size="icon" className="hover:bg-white/10" onClick={() => {
-                const shareText = `${match.teamA.name} vs ${match.teamB.name}\nScore: ${currentInning.score}/${currentInning.wickets} in ${currentInning.overs}.${currentInning.ballsInOver} overs`;
+                const shareText = `${match.teamA.name} vs ${match.teamB.name}\nScore: ${currentInning.score}/${currentInning.wickets}`;
                 if (navigator.share) navigator.share({ title: 'ScoreCric Update', text: shareText, url: window.location.href });
               }}>
                 <Share2 className="w-5 h-5" />
@@ -243,7 +256,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                 {currentInning.score}<span className="text-white/30 text-2xl sm:text-4xl">/</span>{currentInning.wickets}
               </h1>
               <p className="text-xs sm:text-sm font-black opacity-80">
-                {currentInning.overs}.{currentInning.ballsInOver} <span className="opacity-40 font-bold ml-1">({match.oversLimit}.0)</span>
+                {currentInning.overs}.{currentInning.ballsInOver} <span className="opacity-40 font-bold ml-1">({match.currentInning > 2 ? '1.0' : match.oversLimit + '.0'})</span>
               </p>
             </div>
             <div className="text-right space-y-2">
@@ -252,7 +265,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                    <p className="text-[10px] font-black opacity-60 uppercase">Run Rate</p>
                    <p className="text-sm sm:text-base font-black">{getRunRate(currentInning.score, totalBalls)}</p>
                 </div>
-                {match.currentInning === 2 && match.innings[0] && (
+                {rrr !== null && (
                   <>
                     <div className="bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-white/10 flex flex-col items-center">
                       <p className="text-[10px] font-black opacity-60 uppercase">Target</p>
@@ -268,7 +281,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
             </div>
           </div>
 
-          {match.currentInning === 2 && winProb !== null && !match.isSuperOver && (
+          {(match.currentInning === 2 || match.currentInning === 4) && winProb !== null && (
             <div className="mt-6 space-y-2 animate-in fade-in slide-in-from-top-2 duration-700">
               <div className="flex justify-between text-[10px] font-black uppercase tracking-tighter">
                 <span className="flex items-center gap-1"><Zap className="w-3 h-3 text-amber-400" /> {currentInning.battingTeam} {Math.round(winProb)}%</span>
@@ -324,8 +337,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
 
             <TabsContent value="partners">
               <div className="space-y-6">
-                {match.innings[0] && <PartnershipView inning={match.innings[0]} />}
-                {match.innings[1] && <PartnershipView inning={match.innings[1]} />}
+                {match.innings.map((inn, i) => inn && <PartnershipView key={i} inning={inn} />)}
               </div>
             </TabsContent>
 
@@ -343,7 +355,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                         <YAxis tickLine={false} axisLine={false} />
                         <ChartTooltip content={<ChartTooltipContent />} />
                         <Bar dataKey="team1" fill="var(--color-team1)" radius={2} />
-                        {match.currentInning === 2 && <Bar dataKey="team2" fill="var(--color-team2)" radius={2} />}
+                        {(match.currentInning === 2 || match.currentInning === 4) && <Bar dataKey="team2" fill="var(--color-team2)" radius={2} />}
                       </BarChart>
                     </ChartContainer>
                   </CardContent>
@@ -361,7 +373,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                         <YAxis tickLine={false} axisLine={false} />
                         <ChartTooltip content={<ChartTooltipContent />} />
                         <Line type="monotone" dataKey="team1" stroke="var(--color-team1)" strokeWidth={3} dot={false} />
-                        {match.currentInning === 2 && <Line type="monotone" dataKey="team2" stroke="var(--color-team2)" strokeWidth={3} dot={false} />}
+                        {(match.currentInning === 2 || match.currentInning === 4) && <Line type="monotone" dataKey="team2" stroke="var(--color-team2)" strokeWidth={3} dot={false} />}
                       </ReLineChart>
                     </ChartContainer>
                   </CardContent>
@@ -384,9 +396,10 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                      <span className="text-xs font-bold text-muted-foreground uppercase">Decision</span>
                      <span className="text-sm font-black">{match.tossChoice === 'bat' ? 'Batting' : 'Bowling'} First</span>
                   </div>
-                  {match.tournamentId && (
-                    <Button variant="outline" className="w-full font-black text-xs uppercase" onClick={() => router.push(`/tournament/${match.tournamentId}`)}>View Tournament Standings</Button>
-                  )}
+                  <div className="flex justify-between items-center pb-3 border-b">
+                     <span className="text-xs font-bold text-muted-foreground uppercase">Format</span>
+                     <span className="text-sm font-black">{match.format}</span>
+                  </div>
                 </div>
               </Card>
             </TabsContent>
